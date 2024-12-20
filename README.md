@@ -16,7 +16,7 @@
   Included and linked here are books rendered via `Quarto`, one for each stage of the analysis:
 
   * Analysis of IFNg-stimulated T cells [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/IFNg_book/)
-  * Analysis of Tumor biopsies [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/Tumor_book/) (_coming soon_)
+  * Analysis of Tumor biopsies [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/Tumor_book/)
   * Analysis of Skin vaccine-site biopsies [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/Skin_book/) (_coming soon_)
 
 </p>
