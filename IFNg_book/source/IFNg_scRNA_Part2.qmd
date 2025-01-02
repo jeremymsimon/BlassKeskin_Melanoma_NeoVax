@@ -1,0 +1,224 @@
+# IFNg: Normalization, doublet discrimination, integration, clustering {#sec-ifng-normalizaation-clustering}
+
+## Set up Seurat workspace
+
+```{r }
+#| warning: false
+#| error: false
+
+# Load libraries
+library(data.table)
+library(sctransform)
+library(Seurat)
+library(tidyverse)
+library(miQC)	
+library(SeuratWrappers)
+library(fishpond)
+library(Matrix)
+library(patchwork)
+library(alevinQC)
+library(harmony)
+library(scDblFinder)
+
+# Set global options for Seurat v5 objects
+options(Seurat.object.assay.version = 'v5')
+```
+
+## Load previously saved merged object
+
+```{r}
+merged.18279 <- readRDS("IFNg_scRNA_Part1.rds")
+```
+
+## Normalize and scale data
+Regress out mitochondrial contribution
+
+```{r}
+#| warning: false
+#| error: false
+merged.18279 <- NormalizeData(merged.18279)
+merged.18279 <- FindVariableFeatures(merged.18279, 
+                                    assay = "RNA", 
+                                    layer = "data", 
+                                    selection.method = "vst", 
+                                    nfeatures = 5000)
+merged.18279 <- ScaleData(merged.18279, vars.to.regress = "percent.mt")
+
+```
+
+## Run PCA
+
+```{r}
+merged.18279 <- RunPCA(merged.18279, npcs = 200)
+ElbowPlot(merged.18279, ndims = 200, reduction = "pca")
+```
+
+## Plot unintegrated UMAP
+
+```{r}
+#| fig-width: 12
+merged.18279 <- RunUMAP(merged.18279, 
+                        reduction = "pca", 
+                        dims = 1:50, 
+                        reduction.name = "umap.unintegrated")
+DimPlot(merged.18279, reduction = "umap.unintegrated", group.by = c("Site", "Patient", "Timepoint"))
+```
+
+## Call preliminary clusters for the purposes of doublet discrimination
+
+```{r}
+merged.18279 <- FindNeighbors(merged.18279, dims = 1:50, reduction = "pca")
+merged.18279 <- FindClusters(merged.18279, 
+                             resolution = 0.25, 
+                             algorithm = 2)
+
+DimPlot(merged.18279, reduction = "umap.unintegrated", label = T)
+```
+
+## Identify and remove doublets
+
+This uses raw counts as input
+
+### Combine RNA layers
+
+```{r}
+merged.18279[['RNA']] <- JoinLayers(merged.18279[['RNA']])
+```
+
+### Convert seurat to sce and check colData
+
+```{r}
+merged.18279.sce <- as.SingleCellExperiment(merged.18279, assay = "RNA")
+merged.18279.sce
+
+colData(merged.18279.sce)
+```
+
+### Run scDblFinder
+
+Set the `dbr.sd` very high to better allow thresholds to be set based on misclassification rates per sample
+
+```{r}
+merged.18279.sce <- scDblFinder(merged.18279.sce,
+                                 samples = "Sample",
+				 dbr.sd = 1,
+                                 clusters = "seurat_clusters")
+```
+
+### Inspect results
+
+```{r}
+# Look at the classes
+table(merged.18279.sce$seurat_clusters, merged.18279.sce$scDblFinder.class)
+table(merged.18279.sce$Sample, merged.18279.sce$scDblFinder.class)
+
+# Look at the scores
+summary(merged.18279.sce$scDblFinder.score)
+```
+
+### Save doublet classifications into main Seurat object
+
+```{r}
+merged.18279$doublet_classification <- merged.18279.sce$scDblFinder.class
+```
+
+### Count singlets and doublets
+
+```{r}
+table(merged.18279$doublet_classification)
+
+table(merged.18279$doublet_classification, merged.18279$seurat_clusters)
+```
+
+### Plot singlets/doublets in UMAP space
+
+```{r}
+DimPlot(merged.18279,reduction = "umap.unintegrated", group.by = "doublet_classification")
+```
+
+### Subset object to remove doublets and count remaining cells
+
+```{r}
+merged.18279.singlets <- subset(merged.18279, doublet_classification %in% c("singlet"))
+dim(merged.18279.singlets)
+
+# Count remaining cells per initial cluster
+table(merged.18279.singlets$seurat_clusters)
+```
+
+## Remove cells with very high nCount_RNA values, set other final QC filters
+
+```{r}
+merged.18279.singlets <- subset(merged.18279.singlets,
+                                subset = nCount_RNA < 40000 & nCount_RNA > 3000 & nFeature_RNA > 1500)
+dim(merged.18279.singlets)
+```
+
+## Re-compute PCA
+
+Re-scale data now that it has been subset
+
+```{r}
+#| warning: false
+#| error: false
+merged.18279.singlets[["RNA"]] <- split(merged.18279.singlets[["RNA"]], f = merged.18279.singlets$Sample)
+
+merged.18279.singlets <- FindVariableFeatures(merged.18279.singlets, 
+                                    assay = "RNA", 
+                                    layer = "data", 
+                                    selection.method = "vst", 
+                                    nfeatures = 5000)
+merged.18279.singlets <- ScaleData(merged.18279.singlets, vars.to.regress = "percent.mt")
+merged.18279.singlets <- RunPCA(merged.18279.singlets, npcs = 200, verbose = TRUE)
+
+```
+
+## Run Harmony integration
+
+```{r}
+merged.18279.singlets <- IntegrateLayers(merged.18279.singlets, 
+                                method = HarmonyIntegration, 
+                                orig.reduction = "pca",
+                                new.reduction = "integrated.harmony"
+)
+```
+
+## Identify final clusters after integration
+
+```{r}
+merged.18279.singlets <- FindNeighbors(merged.18279.singlets, dims = 1:30, reduction = "integrated.harmony")
+
+merged.18279.singlets <- FindClusters(merged.18279.singlets, 
+                             resolution = 0.7, 
+                             algorithm = 2)
+
+merged.18279.singlets <- RunUMAP(merged.18279.singlets,
+                        reduction = "integrated.harmony",
+                        dims = 1:30,
+                        reduction.name = "umap.harmony")
+
+table(merged.18279.singlets$seurat_clusters)
+```
+
+## Plot clusters
+
+```{r}
+DimPlot(merged.18279.singlets,reduction = "umap.harmony", label = TRUE)
+DimPlot(merged.18279.singlets,reduction = "umap.harmony", group.by = "Patient")
+DimPlot(merged.18279.singlets,reduction = "umap.harmony", group.by = "Site")
+DimPlot(merged.18279.singlets,reduction = "umap.harmony", group.by = "Timepoint")
+DimPlot(merged.18279.singlets,reduction = "umap.harmony", group.by = "IpiCohort")
+DimPlot(merged.18279.singlets,reduction = "umap.harmony", group.by = "Sample") + NoLegend()
+```
+
+## Save clustered object
+
+```{r}
+saveRDS(merged.18279.singlets,"IFNg_scRNA_Part2.rds")
+```
+
+## Get session info
+
+```{r}
+sessionInfo()
+```
