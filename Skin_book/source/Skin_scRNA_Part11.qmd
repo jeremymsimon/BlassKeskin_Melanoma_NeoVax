@@ -1,0 +1,291 @@
+# Skin: Calculating Post vs Pre 3rd vaccination differences in pathway enrichments with fgsea {#sec-skin-gsea}
+
+## Set up Seurat workspace
+
+```{r }
+#| warning: false
+#| error: false
+
+# Load libraries
+library(ggplot2)
+library(Seurat)
+library(tidyverse)
+library(msigdbr)
+library(fgsea)
+library(GSEAtraining)		# This is used because KEGG_MEDICUS isn't yet available in msigdbr
+```
+
+## Read in pseudobulk DE test results
+
+```{r}
+skin_de <- read_tsv("Skin_scRNA_PostVsPre3rd_DiffExp_results.tsv")
+
+skin_de
+```
+
+## Set cluster annotations
+
+```{r}
+cluster_annot <- c(
+  		"0" = "MonoMac_1",
+		"1_0" = "CD4_T_Naive/CM",
+		"1_1" = "CD4_T_CTL",
+		"2_0" = "CD8_T_EM_1",
+		"2_1" = "CD8_T_Naive/CM_1",
+		"2_2" = "CD8_T_EM_2",
+		"3" = "MonoMac_2",
+		"4_0" = "CD8_T_Naive/CM_2",
+		"4_1" = "CD8_T_Naive/CM_3",
+		"5_0" = "NK/T_1",
+		"5_1" = "NK/T_2",
+		"5_2" = "NK_cells",
+		"6_0" = "T_unknown_1",
+		"6_1" = "CD8_T_EM_3",
+		"7" = "cDC2",
+		"8" = "Keratinocytes",
+		"9_0" = "Treg_1",
+		"9_1" = "Treg_2",
+		"10" = "Fibroblasts",
+		"11_0" = "T_unknown_2",
+		"11_1" = "T_unknown_3",
+		"12" = "MonoMac_3",
+		"13_0" = "Proliferating_T_cells_1",
+		"13_1" = "Proliferating_T_cells_2",
+		"14" = "pDC",
+		"15" = "DC_LAMP3",
+		"16" = "Mast",
+		"17" = "Endothelial",
+		"18" = "cDC1",
+		"19_0" = "NK/T_3",
+		"20" = "Pericytes/smooth_muscle",
+		"21" = "Basal_1",
+		"22" = "MonoMac_4",
+		"23" = "B_cells",
+		"24" = "Basal_2",
+		"25" = "Macrophages",
+		"26" = "Proliferating_cDC2"
+)
+```
+
+## Set cluster orders for plotting
+
+```{r}
+cluster_order <- c("0","3","12","22","25","14","18","7","26","15","23","5_2","5_0","5_1","19_0","2_1","4_0","4_1","2_0","2_2","6_1","1_0","1_1","9_0","9_1","13_0","13_1","6_0","11_0","11_1","16","8","10","17","20","21","24")
+```
+
+## Split results by cluster, then extract ranks by log2 fold-change Post3rd vs Pre3rd
+
+```{r}
+skin_de_split <- skin_de %>%
+	group_by(sub.cluster) %>%
+	group_split()
+
+skin_de_split_ranks <- lapply(skin_de_split, 
+								FUN = function(x) { x %>%
+									dplyr::select(gene,logFC) %>%
+									dplyr::arrange(logFC) %>%
+									deframe()
+									}
+						)
+names(skin_de_split_ranks) <- paste0("Cluster", 
+								sapply(skin_de_split, 
+								FUN = function(x) { x %>% 
+									pull(sub.cluster) %>%
+									unique()
+									}
+								)
+							)
+									
+```
+
+## Prepare gene sets from MSigDB
+
+```{r}
+c2 <- msigdbr::msigdbr(species="Homo sapiens",
+		category = "C2")
+
+immunesig <- msigdbr::msigdbr(species="Homo sapiens",
+		category = "C7", 
+		subcategory = "IMMUNESIGDB")
+
+hallmark <- msigdbr::msigdbr(species="Homo sapiens",
+    category = "H")                         
+
+# Get updated KEGG MEDICUS collection from GSEAtraining package 
+km <- get_msigdb(version = "2024.1.Hs", 
+	collection = "c2.cp.kegg_medicus",
+	gene_id_type = "symbols")
+
+# Combine into named list
+pathwaysToTest <- bind_rows(c2, immunesig, hallmark)
+
+pathwaysToTest_split <- pathwaysToTest %>%
+	dplyr::select(gs_name,human_gene_symbol) %>%
+	group_by(gs_name) %>%
+	group_split()
+
+names(pathwaysToTest_split) <- sapply(pathwaysToTest_split, 
+										FUN = function(x) { x %>% 
+											pull(gs_name) %>%
+											unique()
+											}
+										)
+
+
+pathwaysToTest_split_list <- sapply(pathwaysToTest_split, 
+									simplify = FALSE, 
+									USE.NAMES = TRUE, 
+									FUN = function(x) { x %>%
+										pull(human_gene_symbol) %>%
+										unique()
+									}
+								)
+# Add KEGG MEDICUS to the list
+pathwaysToTest_split_list <- c(pathwaysToTest_split_list, km)
+```
+
+## Iterate over DE results and run fgsea on each cluster's ranked gene list
+
+```{r}
+#| cache: true
+#| cache-lazy: false
+#| warning: false
+#| error: false
+#| output: false
+set.seed(123)
+fgseaRes <- sapply(skin_de_split_ranks, 
+	simplify = FALSE, 
+	USE.NAMES = TRUE, 
+	FUN = function(x) {
+		fgsea(pathways = pathwaysToTest_split_list, 
+			  stats = x,
+			  minSize = 5, # Note this is the intersection of genes in the ranked list and genes in the pathway
+			  maxSize = 1000,
+			  nproc = 1
+			  )
+		}
+	)
+```
+
+## Collapse all results into one tibble and filter for significance
+Save the filtered output
+
+```{r}
+bind_rows(fgseaRes,.id = "sub.cluster") %>%
+    as_tibble() %>%
+    mutate(leadingEdgeGenes = map_chr(leadingEdge, toString)) %>%
+    dplyr::select(-leadingEdge) %>%
+    dplyr::filter(padj < 0.05) %>%
+    dplyr::arrange(sub.cluster,padj,NES) %>%
+    write_tsv("Skin_scRNA_PostVsPre3rd_DiffExp_fgseaRes_sig.tsv")
+
+```
+
+## Print selection of top-most significant pathways
+
+```{r}
+bind_rows(fgseaRes,.id = "sub.cluster") %>%
+    as_tibble() %>%
+    mutate(leadingEdgeGenes = map_chr(leadingEdge, toString)) %>%
+    dplyr::select(-leadingEdge) %>%
+    dplyr::filter(padj < 0.05) %>%
+    dplyr::arrange(sub.cluster,padj,-NES) %>%
+    group_by(sub.cluster) %>%
+    slice_head(n = 10) %>%
+    pull(pathway) %>%
+    unique()
+```
+
+## Print selection of recurring top-most significant pathways in multiple clusters
+
+Restrict to HALLMARK, KEGG, WP, or REACTOME pathways seen in the top 100 most significant results in at least 2 clusters
+
+```{r}
+recurring_topSigPathways <- bind_rows(fgseaRes,.id = "sub.cluster") %>%
+    as_tibble() %>%
+    mutate(leadingEdgeGenes = map_chr(leadingEdge, toString)) %>%
+    dplyr::select(-leadingEdge) %>%
+    dplyr::filter(padj < 0.05 & NES > 0) %>%
+    dplyr::arrange(sub.cluster,padj) %>%
+    group_by(sub.cluster) %>%
+    slice_head(n = 100) %>%
+    dplyr::select(sub.cluster,pathway,padj,NES) %>%
+    group_by(pathway) %>%
+    summarize(n = n()) %>%
+    dplyr::filter(n>=2) %>%
+    dplyr::filter(str_detect(pathway,"HALLMARK|WP|KEGG|REACTOME")) %>% 
+    pull(pathway) %>%
+    unique()
+
+recurring_topSigPathways
+
+names(recurring_topSigPathways) <- rep("Other recurring significant",length(recurring_topSigPathways))
+```
+
+## Filter to specific pathways related to innate immunity of interest
+
+```{r}
+topsigPathways <- c("Innate stimulation" = "KEGG_TOLL_LIKE_RECEPTOR_SIGNALING_PATHWAY",
+                            "Interferon signaling" = "REACTOME_INTERFERON_SIGNALING",
+                            "Interferon signaling" = "REACTOME_INTERFERON_ALPHA_BETA_SIGNALING",
+                            "Interferon signaling" = "HALLMARK_INTERFERON_ALPHA_RESPONSE",
+                            "Interferon signaling" = "HALLMARK_INTERFERON_GAMMA_RESPONSE",
+                            "Cytokine signaling" = "REACTOME_CYTOKINE_SIGNALING_IN_IMMUNE_SYSTEM",
+                            "Cytokine signaling" = "REACTOME_SIGNALING_BY_INTERLEUKINS",
+                            "Cytokine signaling" = "REACTOME_INTERLEUKIN_1_FAMILY_SIGNALING",
+                            "Cytokine signaling" = "REACTOME_INTERLEUKIN_2_FAMILY_SIGNALING",
+                            "Cytokine signaling" = "HALLMARK_IL2_STAT5_SIGNALING",
+                            "Cytokine signaling" = "HALLMARK_IL6_JAK_STAT3_SIGNALING",
+                            "Cytokine signaling" = "HALLMARK_TNFA_SIGNALING_VIA_NFKB",
+                            "Antigen processing" = "REACTOME_ANTIGEN_PROCESSING_CROSS_PRESENTATION",
+                            "Antigen processing" = "REACTOME_ANTIGEN_PROCESSING_UBIQUITINATION_PROTEASOME_DEGRADATION"
+				)
+
+# Combine with top significant and remove redundant pathways
+topsigPathways <- c(topsigPathways,recurring_topSigPathways[!recurring_topSigPathways %in% topsigPathways])
+    
+gs_pathways <- pathwaysToTest_split_list[topsigPathways]
+```
+
+## Plot dot plot of NES and p-value for pathways of interest
+
+```{r}
+#| fig-width: 15
+#| fig-height: 8
+bind_rows(fgseaRes,.id = "sub.cluster") %>%
+    as_tibble() %>%
+    mutate(leadingEdgeGenes = map_chr(leadingEdge, toString)) %>%
+    dplyr::select(-leadingEdge) %>%
+    dplyr::filter(pathway %in% topsigPathways) %>%
+    left_join(enframe(topsigPathways,name = "PathwayGroup",value = "pathway"),by="pathway") %>%
+    left_join(enframe(cluster_annot,name = "sub.cluster", value = "Cluster") %>% 
+                mutate(sub.cluster = paste0("Cluster",sub.cluster)), 
+              by = "sub.cluster") %>%
+    mutate(logP = ifelse(padj < 0.05, -log10(padj), 0)) %>%
+    ggplot(aes(x = fct_relevel(Cluster,cluster_annot[cluster_order][cluster_annot[cluster_order] %in% Cluster]), y = pathway)) +
+    geom_point(aes(color = NES, size = logP, alpha = I(ifelse(logP < -log10(0.05), 0, 1)))) +
+    scale_size_continuous("-log10 adj p", range = c(1, 10), breaks = c(1.3, 5, 10, 20, 30)) +
+    scale_color_gradient2(low = "blue", mid = "white", high = "red", limits=c(-3,3), midpoint = 0, oob = scales::squish) +
+    theme_bw() +
+    facet_grid(fct_relevel(PathwayGroup,
+                            c("Innate stimulation",
+                              "Interferon signaling",
+                              "Cytokine signaling",
+                              "Antigen processing",
+                              "Other recurring significant")
+                           )~.,
+               scales="free",
+               switch="y",
+               space="free") +
+    scale_y_discrete(position = "right") +
+    ylab("") +
+    xlab("") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+          strip.text.y.left = element_text(angle = 0))
+```
+
+## Get session info
+
+```{r}
+sessionInfo()
+```

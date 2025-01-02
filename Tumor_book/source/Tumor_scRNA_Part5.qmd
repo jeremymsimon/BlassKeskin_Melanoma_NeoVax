@@ -1,0 +1,145 @@
+# Tumor: Post-clustering comprehensive marker identification {#sec-tumor-initial-marker-genes}
+
+## Set up Seurat workspace
+
+```{r }
+#| warning: false
+#| error: false
+
+# Load libraries
+library(data.table)
+library(devtools)
+library(presto) 
+library(glmGamPoi)
+library(sctransform) 
+library(Seurat)
+library(tidyverse)
+library(miQC)
+library(SeuratWrappers)
+library(flexmix)
+library(SingleCellExperiment)
+library(SummarizedExperiment)
+library(readxl)
+library(fishpond)
+library(Matrix)
+library(speckle)
+library(scater)
+library(patchwork)
+library(vctrs)
+library(alevinQC)
+library(harmony)
+library(scDblFinder)
+library(cellXY)
+
+# Set global options for Seurat v5 objects
+options(Seurat.object.assay.version = 'v5')
+```
+
+## Load previously saved clustered object
+
+```{r}
+merged.18279.tumor.singlets <- readRDS("Tumor_scRNA_Part3.rds")
+```
+
+## Set idents to preferred initial clustering resolution
+
+```{r}
+Idents(merged.18279.tumor.singlets) <- merged.18279.tumor.singlets$RNA_snn_res.1
+merged.18279.tumor.singlets$seurat_clusters <- merged.18279.tumor.singlets$RNA_snn_res.1
+DimPlot(merged.18279.tumor.singlets, reduction="umap.harmony", label=T)
+```
+
+## Detect markers with FindAllMarkers
+
+```{r}
+#| cache: true
+#| cache-lazy: false
+fam <- FindAllMarkers(merged.18279.tumor.singlets,
+                      assay = "RNA",
+                      slot = "data",
+                      only.pos = TRUE, 
+                      logfc.threshold = 0.25)
+head(fam)
+```
+
+## Plot top markers per cluster as dotplot
+
+```{r}
+#| fig-width: 40
+#| fig-height: 8
+fam_top <- fam %>%
+	mutate(diff = pct.1 - pct.2) %>%
+	dplyr::filter(pct.1 > 0.25 & diff > 0.1 & pct.2 < 0.1 & p_val_adj < 0.01) %>%
+	group_by(cluster) %>%
+	slice_head(n=10) %>%
+	pull(gene) %>%
+	unique()
+
+# Compute aggregated expression values of these genes and cluster them to order the figure
+rna <- AverageExpression(merged.18279.tumor.singlets,assay="RNA",slot="data")
+rna.sub <- rna$RNA[fam_top,]
+cors.genes <- as.dist(1-cor(as.matrix(t(rna.sub)),method="pearson"))
+hc.genes <- hclust(cors.genes)
+fam_top.sorted <- rownames(rna.sub)[hc.genes$order]
+
+# Plot
+DotPlot(merged.18279.tumor.singlets,
+        features = fam_top.sorted,
+        assay = "RNA",
+        cols=c("blue","red"),
+        cluster.idents=T) + 
+  RotatedAxis()
+
+```
+
+## Subset to T/NK lineage and compute markers just among these clusters
+
+```{r}
+#| cache: true
+#| cache-lazy: false
+merged.18279.tumor.singlets.tnk <- subset(merged.18279.tumor.singlets,
+                                    subset = seurat_clusters %in% c(1,2,3,9,12,16,18,22,26))
+fam.tnk <- FindAllMarkers(merged.18279.tumor.singlets.tnk,
+                      assay="RNA",
+                      slot="data",
+                      only.pos = TRUE, 
+                      logfc.threshold = 0.25)
+
+head(fam.tnk)
+```
+
+## Plot top markers per cluster as dotplot
+
+```{r}
+#| fig-width: 20
+#| fig-height: 8
+fam.tnk_top <- fam.tnk %>%
+	mutate(diff = pct.1 - pct.2) %>%
+	dplyr::filter(pct.1 > 0.25 & diff > 0.1 & pct.2 < 0.1 & p_val_adj < 0.01) %>%
+	group_by(cluster) %>%
+	slice_head(n=10) %>%
+	pull(gene) %>%
+	unique()
+
+# Compute aggregated expression values of these genes and cluster them to order the figure
+rna <- AverageExpression(merged.18279.tumor.singlets,assay="RNA",slot="data")
+rna.sub <- rna$RNA[fam.tnk_top,]
+cors.genes <- as.dist(1-cor(as.matrix(t(rna.sub)),method="pearson"))
+hc.genes <- hclust(cors.genes)
+fam.tnk_top.sorted <- rownames(rna.sub)[hc.genes$order]
+
+# Plot
+DotPlot(merged.18279.tumor.singlets,
+        features = fam.tnk_top.sorted,
+        assay = "RNA",
+        cols=c("blue","red"),
+        cluster.idents=T) + 
+  RotatedAxis()
+
+```
+
+## Get sessionInfo
+
+```{r}
+sessionInfo()
+```

@@ -1,0 +1,140 @@
+# Skin: Classification of CD4 and CD8 T cell states within T/NK lineage {#sec-skin-projectils}
+
+## Set up Seurat workspace
+
+```{r }
+#| warning: false
+#| error: false
+
+# Load libraries
+library(data.table)
+library(devtools)
+library(presto) 
+library(glmGamPoi)
+library(sctransform) 
+library(Seurat)
+library(tidyverse)
+library(miQC) 
+library(SeuratWrappers)
+library(flexmix)
+library(SingleCellExperiment)
+library(SummarizedExperiment)
+library(readxl)
+library(fishpond)
+library(Matrix)
+library(speckle)
+library(scater)
+library(patchwork)
+library(vctrs)
+library(alevinQC)
+library(harmony)
+library(scDblFinder)
+library(cellXY)
+library(STACAS)
+library(ProjecTILs)
+
+# Set global options for Seurat v5 objects
+options(Seurat.object.assay.version = 'v5')
+```
+
+## Load previously saved sub-clustered object
+
+```{r}
+merged.18279.skin.singlets <- readRDS("Skin_scRNA_Part6.rds")
+```
+
+## Run CD8 and CD4 projection with `projecTILs` as in [this vignette](https://carmonalab.github.io/ProjecTILs_CaseStudies/Bassez_BC.html)
+Note these classifications are limited only to CD4/CD8 and do not include NK cells
+
+### Retrieve human CD8 and CD4 reference maps
+
+```{r}
+options(timeout = max(900, getOption("timeout")))
+download.file("https://figshare.com/ndownloader/files/41414556", destfile = "CD8T_human_ref_v1.rds")
+download.file("https://figshare.com/ndownloader/files/43794750", destfile = "CD4T_human_ref_v2.rds")
+```
+
+### Load reference maps
+
+```{r}
+ref.cd8 <- load.reference.map("CD8T_human_ref_v1.rds")
+ref.cd4 <- load.reference.map("CD4T_human_ref_v2.rds")
+```
+
+### Plot reference atlases
+
+```{r}
+#| fig-width: 10
+a <- DimPlot(ref.cd8, cols = ref.cd8@misc$atlas.palette, label = T) + theme(aspect.ratio = 1) +
+    ggtitle("CD8 T reference") + NoLegend()
+
+b <- DimPlot(ref.cd4, cols = ref.cd4@misc$atlas.palette, label = T) + theme(aspect.ratio = 1) +
+    ggtitle("CD4 T reference") + NoLegend()
+
+a | b
+```
+
+### Classify CD8 T subtypes
+
+```{r}
+merged.18279.skin.singlets <- ProjecTILs.classifier(merged.18279.skin.singlets, ref.cd8, ncores = 8, split.by = "Sample")
+```
+
+### Classify CD4 T subtypes
+
+```{r}
+merged.18279.skin.singlets <- ProjecTILs.classifier(merged.18279.skin.singlets, ref.cd4, ncores = 8, split.by = "Sample", overwrite = F)
+```
+
+## Tabulate and visualize projections
+In addition to guiding annotation, these projected cell states can be quantified downstream comparing pre vs post-vaccine, tumor samples over time, or to characterize the phenotypes of T-cells that have expanded with vaccination
+
+### Count total cells by T cell state
+
+```{r}
+table(merged.18279.skin.singlets$functional.cluster, useNA = "ifany")
+```
+
+### Tabulate which T cell state was most abundant in each subcluster
+
+```{r}
+as.data.frame(table(merged.18279.skin.singlets$sub.cluster, merged.18279.skin.singlets$functional.cluster, useNA = "ifany")) %>%
+    as_tibble() %>%
+    dplyr::rename("Cluster" = Var1, "CellState" = Var2) %>%
+    group_by(Cluster) %>%
+    slice_max(Freq,n=1) %>%
+    inner_join(enframe(table(merged.18279.skin.singlets$sub.cluster),name="Cluster",value="TotalCount"),by="Cluster") %>%
+    as.data.frame()
+```
+
+### Plot UMAP of all cells labeled by projected T cell state
+
+```{r}
+DimPlot(merged.18279.skin.singlets, group.by = "functional.cluster", reduction="umap.harmony")
+```
+
+### Plot just T/NK cell lineage
+
+```{r}
+tnk_clusters <- sort(str_subset(unique(merged.18279.skin.singlets$sub.cluster),"_"))
+tnk_clusters
+
+tnk_cells <- WhichCells(merged.18279.skin.singlets,idents = tnk_clusters)
+DimPlot(merged.18279.skin.singlets, 
+	group.by = "functional.cluster", 
+	reduction="umap.harmony",
+	cells = tnk_cells)
+	
+```
+
+## Save modified object
+
+```{r}
+saveRDS(merged.18279.skin.singlets, "Skin_scRNA_Part8.rds")
+```
+
+## Get session info
+
+```{r}
+sessionInfo()
+```

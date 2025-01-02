@@ -1,0 +1,617 @@
+# Tumor: Plot TCR reconstruction data and T cell expression characteristics of vaccine-reactive TILs {#sec-tumor-tcr}
+
+## Set up Seurat workspace
+
+```{r }
+#| warning: false
+#| error: false
+
+# Load libraries
+library(Seurat)
+library(tidyverse)
+library(circlize)
+library(ComplexHeatmap)
+library(paletteer)
+library(viridis)
+library(readxl)
+library(patchwork)
+library(scater)
+library(muscat)
+
+```
+
+## Read in clustered Seurat object
+
+```{r}
+merged.18279.tumor.singlets <- readRDS("Tumor_scRNA_Part8.rds")
+```
+
+## Import and re-format T cell reactivity groupings
+
+### Open the scTCR barcodes in each category: Existing, Post-Nivo, Post-Vax, Reactive
+
+```{r}
+#| eval: false
+p101_tils <- read.csv("sctcr_scRep_vjaa_p101_til_freq_barcodes_category_reactivity.csv")
+p103_tils <- read.csv("sctcr_scRep_vjaa_p103_til_freq_barcodes_category_reactivity.csv")
+p104_tils <- read.csv("sctcr_scRep_vjaa_p104_til_freq_barcodes_category_reactivity.csv")
+p108_tils <- read.csv("sctcr_scRep_vjaa_p108_til_freq_barcodes_category_reactivity.csv")
+```
+
+```{r}
+#| echo: false
+p101_tils <- read.csv("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/sctcr/sctcr_scRep_vjaa_p101_til_freq_barcodes_category_reactivity.csv")
+p103_tils <- read.csv("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/sctcr/sctcr_scRep_vjaa_p103_til_freq_barcodes_category_reactivity.csv")
+p104_tils <- read.csv("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/sctcr/sctcr_scRep_vjaa_p104_til_freq_barcodes_category_reactivity.csv")
+p108_tils <- read.csv("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/sctcr/sctcr_scRep_vjaa_p108_til_freq_barcodes_category_reactivity.csv")
+```
+
+### Reformat dataframes so that each scTCR barcode has its own row and filter for Post-Nivo and Post-Vax TCRs
+
+```{r}
+p101_pnpv <- as_tibble(p101_tils) %>% 
+	dplyr::filter(sctcr_category %in% c("Post-Nivolumab","Post-Vaccine")) %>%
+    mutate(Barcode = strsplit(as.character(barcodes), ",")) %>%
+    unnest(Barcode) %>%
+    dplyr::select(-barcodes) %>%
+    mutate(Barcode = str_replace(Barcode, "-1", ""))
+p103_pnpv <- as_tibble(p103_tils) %>% 
+	dplyr::filter(sctcr_category %in% c("Post-Nivolumab","Post-Vaccine")) %>%
+    mutate(Barcode = strsplit(as.character(barcodes), ",")) %>%
+    unnest(Barcode) %>%
+    dplyr::select(-barcodes) %>%
+    mutate(Barcode = str_replace(Barcode, "-1", ""))
+
+```
+
+### Merge into one dataframe
+
+```{r}
+combined_pnpv <- bind_rows(p101_pnpv,p103_pnpv) %>%
+	dplyr::select(vjaa,Barcode,sctcr_category) %>%
+  dplyr::filter(Barcode %in% str_replace_all(colnames(merged.18279.tumor.singlets), "_.{1,3}mgIpi_RNA",""))
+
+combined_pnpv
+```
+
+### Create pseudobulks by Patient and Timepoint, plot heatmap comparing Post-Nivo and Post-Vax clonotypes
+
+```{r}
+#| fig-width: 10
+#| fig-height: 8
+cells.pnpv <- colnames(merged.18279.tumor.singlets)[str_replace_all(colnames(merged.18279.tumor.singlets), "_.{1,3}mgIpi_RNA","") %in% combined_pnpv$Barcode]
+merged.18279.tumor.singlets.pnpv <- subset(merged.18279.tumor.singlets, 
+                                           cells = cells.pnpv)
+tcr_cats_pnpv <- combined_pnpv %>% 
+  dplyr::select(-vjaa) %>% 
+  deframe()
+
+tcr_cats_pnpv_ordered <- tcr_cats_pnpv[str_replace_all(cells.pnpv, "_.{1,3}mgIpi_RNA","")]
+
+merged.18279.tumor.singlets.pnpv <- AddMetaData(merged.18279.tumor.singlets.pnpv, as.character(tcr_cats_pnpv_ordered), col.name = "TCRgroup")
+
+merged.18279.tumor.singlets.pnpv[['RNA']] <- JoinLayers(merged.18279.tumor.singlets.pnpv[['RNA']])
+merged.pnpv.sce <- as.SingleCellExperiment(merged.18279.tumor.singlets.pnpv, assay="RNA")
+
+(mergedCondition.pnpv.sce <- prepSCE(merged.pnpv.sce,
+        kid = "sub.cluster",
+        gid = "TCRgroup",
+        sid = "Patient",
+        drop = TRUE))
+pb <- aggregateData(mergedCondition.pnpv.sce,
+    assay = "counts",
+    fun = "mean",
+    by = c("group_id", "sample_id"))
+
+# Set up gene groupings for heatmap
+c1 <- c("CD3E","CD4","CD8A","CD8B")
+c2 <- c("CCR7","TCF7","SELL","CD28","CD27","IL7R","FAS","LEF1")
+c3 <- c("NKG7","CST7","FASLG","PRF1","GZMA","GZMB","GZMH","GZMK","GZMM","GNLY","IL21","IL2","TNF","IFNG","CCL4","CCL5")
+c4 <- c("CD38","ENTPD1","ITGAE","CD69","KLRG1","CD40LG","TNFRSF4","TNFRSF9","ICOS","ITGAL","ITGA1","ITGB1","CX3CR1","CXCR6","IL2RA")
+c5 <- c("PDCD1","CTLA4","TIGIT","LAG3","HAVCR2","CD244","CD160","BTLA","VTCN1","TOX")
+c6 <- c("MKI67","TBX1","EOMES","ZNF683","ID2","ID3","PRDM1","GATA3","FOXP3")
+
+heat.goi <- list("T cell" = c1, 
+        "Memory/Naive" = c2,
+        "Effector function" = c3,
+        "Phenotype" = c4,
+        "Inhibitory and exhaustion" = c5,
+        "Transcription factors" = c6
+        ) %>%
+        stack() %>%
+        dplyr::rename("Gene" = values,"Category" = ind) %>%
+        as_tibble()
+heat.goi
+
+pn.mat <- assays(pb)[['Post-Nivolumab']][heat.goi$Gene,]
+colnames(pn.mat) <- paste0(colnames(pn.mat),"_PostNivo")
+
+pv.mat <- assays(pb)[['Post-Vaccine']][heat.goi$Gene,]
+colnames(pv.mat) <- paste0(colnames(pv.mat),"_PostVax")
+
+ComplexHeatmap::Heatmap(cbind(pn.mat,pv.mat),
+              cluster_rows = F,
+              cluster_columns = F,
+              cluster_row_slices = F,
+              column_split = factor(c("P101","P103","P101","P103")),
+              column_order = c("P101_PostNivo","P101_PostVax","P103_PostNivo","P103_PostVax"),
+              row_split = factor(heat.goi$Category),
+              border = TRUE,
+              row_title_rot = 0,
+              row_title_side = "left",
+              row_names_side = "right",
+              col = circlize::colorRamp2(c(0,3),hcl_palette = "viridis"),
+              name = "Expression",
+              row_names_gp = gpar(fontsize=6,fontface="italic"),
+              row_title_gp = gpar(fontsize=8,fontface="bold")
+)
+```
+
+
+### Reformat dataframes so that each scTCR barcode has its own row and filter for reactive TCRs
+
+```{r}
+p101_reactive <- as_tibble(p101_tils) %>% 
+	dplyr::filter(reactive==TRUE) %>%
+    mutate(Barcode = strsplit(as.character(barcodes), ",")) %>%
+    unnest(Barcode) %>%
+    dplyr::select(-barcodes) %>%
+    mutate(Barcode = str_replace(Barcode, "-1", ""))
+p103_reactive <- as_tibble(p103_tils) %>% 
+	dplyr::filter(reactive==TRUE) %>%
+    mutate(Barcode = strsplit(as.character(barcodes), ",")) %>%
+    unnest(Barcode) %>%
+    dplyr::select(-barcodes) %>%
+    mutate(Barcode = str_replace(Barcode, "-1", ""))
+p104_reactive <- as_tibble(p104_tils) %>% 
+	dplyr::filter(reactive==TRUE) %>%
+    mutate(Barcode = strsplit(as.character(barcodes), ",")) %>%
+    unnest(Barcode) %>%
+    dplyr::select(-barcodes) %>%
+    mutate(Barcode = str_replace(Barcode, "-1", ""))
+p108_reactive <- as_tibble(p108_tils) %>% 
+	dplyr::filter(reactive==TRUE) %>%
+    mutate(Barcode = strsplit(as.character(barcodes), ",")) %>%
+    unnest(Barcode) %>%
+    dplyr::select(-barcodes) %>%
+    mutate(Barcode = str_replace(Barcode, "-1", ""))
+
+```
+
+### Merge into one dataframe
+
+```{r}
+combined_reactive <- bind_rows(p101_reactive,p103_reactive,p104_reactive,p108_reactive) %>%
+	dplyr::select(vjaa,Barcode) %>%
+  dplyr::filter(Barcode %in% str_replace_all(colnames(merged.18279.tumor.singlets), "_.{1,3}mgIpi_RNA",""))
+
+combined_reactive
+```
+
+## Import data with numbered TCRs
+
+```{r}
+#| echo: false
+numbered_tcrs_reformatted <- read.csv("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/Eryn_reactivity_results/reformatted_reconstructed_TCR_072324.csv")
+numbered_tcrs_original <- read_xlsx("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/Eryn_reactivity_results/EB_TCR to reconstructed 23Jul24.xlsx")
+
+```
+
+```{r}
+#| eval: false
+numbered_tcrs_reformatted <- read.csv("reformatted_reconstructed_TCR.csv")
+numbered_tcrs_original <- read_xlsx("reconstructed_TCR.xlsx")
+```
+
+### Check the order of the rows is the same then merge
+
+```{r}
+table(numbered_tcrs_reformatted[,"CDR3A_1"] == numbered_tcrs_original[,"CDR3A_1"])
+# Merge dataframes so we have the TCR# and the scTCR_TRBV1 column in the same file
+numbered_tcrs <- numbered_tcrs_original %>%
+  cbind(scTCR_TRBV_1 = numbered_tcrs_reformatted$scTCR_TRBV_1)
+
+# Add vjaa column
+numbered_tcrs <- numbered_tcrs %>%
+  mutate(vjaa = paste0(TRAV_1, ".", TRAJ_1, ";", CDR3A_1, "_", scTCR_TRBV_1, ".", TRBJ_1, ";", CDR3B_1)) %>%
+  select(`TCR#`, vjaa)
+
+
+combined_reactive_numbered <- left_join(combined_reactive,numbered_tcrs,by="vjaa") %>%
+  mutate(TCRnum = paste0("TCR",`TCR#`)) %>%
+  dplyr::select(-`TCR#`)
+
+combined_reactive_numbered
+```
+
+## Plot TCRs ranked by post-vaccine frequencies
+Label with whether it was selected for reconstruction, and which of those were vaccine-reactive
+
+### Import scTCR object
+
+```{r}
+#| eval: false
+combined_TCR <- readRDS("Skin_Tumor_scTCR.rds")
+```
+
+```{r}
+#| echo: false
+combined_TCR <- readRDS("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/sctcr/sctcr_scRep_combined_TCR_skin_tumor.Rds")
+
+```
+
+### Rank TCRs by post-vaccine frequency
+
+```{r}
+reconstructed_tcr <- numbered_tcrs_reformatted %>%
+	mutate(TRAJ_1 = str_replace_all(TRAJ_1,";","")) %>%
+	mutate(vjaa = paste0(TRAV_1, ".", TRAJ_1, ";", CDR3A_1, "_", scTCR_TRBV_1, ".", TRBJ_1, ";", CDR3B_1)) %>%
+	mutate(Patient = paste0("P",Patient)) %>%
+	dplyr::select(Patient,vjaa,Reactive) %>% 
+	distinct()
+	
+postvax_clonefreq_ranked <- bind_rows(combined_TCR) %>% 
+    as_tibble() %>%
+    dplyr::filter(Site == "Tumor") %>%
+    dplyr::filter(Timepoint %in% c("W20", "PD")) %>%
+    mutate(Timepoint = str_replace_all(Timepoint, "W20|PD", "Post-vaccine")) %>%
+    group_by(Patient,Timepoint,vjaa) %>%
+    mutate(nDistinctClonesPerTimepoint = n()) %>%
+    ungroup() %>%
+    left_join(reconstructed_tcr, by=c("vjaa","Patient")) %>%
+    dplyr::select(Patient,Timepoint,CTaa,vjaa,nDistinctClonesPerTimepoint,Reactive) %>% 
+    distinct() %>% 
+    mutate(Reconstructed = case_when(
+    	is.na(Reactive) ~ "No",
+    	!is.na(Reactive) ~ "Yes"
+    	)
+    ) %>%
+    mutate(ReactivityCategory = case_when(
+    	Reactive == "Yes" ~ "Reactive",
+    	Reactive == "No" ~ "Not reactive",
+    	Reconstructed == "No" ~ "Not tested"
+    	)
+    ) %>%
+    group_by(Patient) %>%
+    dplyr::arrange(Patient, -nDistinctClonesPerTimepoint) %>%
+    mutate(Rank = row_number())
+
+postvax_clonefreq_ranked_list <- postvax_clonefreq_ranked %>%
+	group_by(Patient) %>%
+	group_split()
+
+clone_lengths <- unlist(lapply(postvax_clonefreq_ranked_list,nrow))
+clone_rel_lengths <- clone_lengths/min(clone_lengths)
+
+
+```
+
+### Plot and assemble heatmap with annotations
+
+```{r}
+p101 <- ComplexHeatmap::Heatmap(as.factor(postvax_clonefreq_ranked_list[[1]]$Reconstructed),
+	cluster_rows = FALSE,
+	cluster_columns = FALSE,
+	border = TRUE,
+	name = "Reconstructed",
+	column_label = "P101\n",
+	column_names_side = "top",
+	column_names_rot = 0,
+	column_names_centered = TRUE,
+	column_names_gp = gpar(fontface = "bold"),
+	row_title = "Clones ranked by post-vaccine frequency",
+	row_title_gp = gpar(fontsize = 9),
+	col = c("gray80","blue"),
+	left_annotation = rowAnnotation(NumClones = anno_barplot(postvax_clonefreq_ranked_list[[1]]$nDistinctClonesPerTimepoint, axis_param = list(direction = "reverse")),width = unit(2, "cm"), show_legend = FALSE),
+	right_annotation = rowAnnotation(Reactive = as.factor(postvax_clonefreq_ranked_list[[1]]$Reactive), 
+			col = list(Reactive = c("No" = "white", "Yes" = "red")),
+			na_col = "white",
+			border = TRUE, 
+			show_legend = FALSE,
+			annotation_name_rot = 0
+		),
+	width = unit(2, "cm"),
+	show_heatmap_legend = FALSE
+) %>% 
+  draw() %>% 
+  grid.grabExpr()
+
+p103 <- ComplexHeatmap::Heatmap(as.factor(postvax_clonefreq_ranked_list[[2]]$Reconstructed),
+	cluster_rows = FALSE,
+	cluster_columns = FALSE,
+	border = TRUE,
+	name = "Reconstructed",
+	column_label = "P103\n",
+	column_names_side = "top",
+	column_names_rot = 0,
+	column_names_centered = TRUE,
+	column_names_gp = gpar(fontface = "bold"),
+	col = c("gray80","blue"),
+	left_annotation = rowAnnotation(NumClones = anno_barplot(postvax_clonefreq_ranked_list[[2]]$nDistinctClonesPerTimepoint, axis_param = list(direction = "reverse")),width = unit(2, "cm"), show_legend = FALSE),
+	right_annotation = rowAnnotation(Reactive = as.factor(postvax_clonefreq_ranked_list[[2]]$Reactive), 
+			col = list(Reactive = c("No" = "white", "Yes" = "red")),
+			na_col = "white",
+			border = TRUE, 
+			show_legend = FALSE,
+			annotation_name_rot = 0
+		),
+	width = unit(2, "cm"),
+	show_heatmap_legend = FALSE
+) %>% 
+  draw() %>% 
+  grid.grabExpr()
+
+p104 <- ComplexHeatmap::Heatmap(as.factor(postvax_clonefreq_ranked_list[[3]]$Reconstructed),
+	cluster_rows = FALSE,
+	cluster_columns = FALSE,
+	border = TRUE,
+	name = "Reconstructed",
+	column_label = "P104\n",
+	column_names_side = "top",
+	column_names_rot = 0,
+	column_names_centered = TRUE,
+	column_names_gp = gpar(fontface = "bold"),
+	col = c("gray80","blue"),
+	left_annotation = rowAnnotation(NumClones = anno_barplot(postvax_clonefreq_ranked_list[[3]]$nDistinctClonesPerTimepoint, axis_param = list(direction = "reverse")),width = unit(2, "cm"), show_legend = FALSE),
+	right_annotation = rowAnnotation(Reactive = as.factor(postvax_clonefreq_ranked_list[[3]]$Reactive), 
+			col = list(Reactive = c("No" = "white", "Yes" = "red")),
+			na_col = "white",
+			border = TRUE, 
+			show_legend = FALSE,
+			annotation_name_rot = 0
+		),
+	width = unit(2, "cm"),
+	show_heatmap_legend = FALSE
+) %>% 
+  draw() %>% 
+  grid.grabExpr()
+
+p108 <- ComplexHeatmap::Heatmap(as.factor(postvax_clonefreq_ranked_list[[4]]$Reconstructed),
+	cluster_rows = FALSE,
+	cluster_columns = FALSE,
+	border = TRUE,
+	name = "Reconstructed",
+	column_label = "P108\n",
+	column_names_side = "top",
+	column_names_rot = 0,
+	column_names_centered = TRUE,
+	column_names_gp = gpar(fontface = "bold"),
+	col = c("gray80","blue"),
+	left_annotation = rowAnnotation(NumClones = anno_barplot(postvax_clonefreq_ranked_list[[4]]$nDistinctClonesPerTimepoint, axis_param = list(direction = "reverse")),width = unit(2, "cm")),
+	right_annotation = rowAnnotation(Reactive = as.factor(postvax_clonefreq_ranked_list[[4]]$Reactive), 
+			col = list(Reactive = c("No" = "white", "Yes" = "red")),
+			na_col = "white",
+			border = TRUE,
+			annotation_name_rot = 0
+		),
+	width = unit(2, "cm")
+) %>% 
+  draw() %>% 
+  grid.grabExpr()
+
+wrap_plots(p101, p103, p104, p108, ncol = 4)
+
+```
+
+
+## Plot TILs with reactive TCRs as heatmap
+
+### Set up gene groupings for TIL heatmap
+
+```{r}
+c1 <- c("CD3E","CD4","CD8A","CD8B")
+c2 <- c("CCR7","TCF7","SELL","CD28","CD27","IL7R","FAS","LEF1")
+c3 <- c("NKG7","CST7","FASLG","PRF1","GZMA","GZMB","GZMH","GZMK","GZMM","GNLY","IL21","IL2","TNF","IFNG","CCL4","CCL5")
+c4 <- c("CD38","ENTPD1","ITGAE","CD69","KLRG1","CD40LG","TNFRSF4","TNFRSF9","ICOS","ITGAL","ITGA1","ITGB1","CX3CR1","CXCR6","IL2RA")
+c5 <- c("PDCD1","CTLA4","TIGIT","LAG3","HAVCR2","CD244","CD160","BTLA","VTCN1","TOX")
+c6 <- c("MKI67","TBX1","EOMES","ZNF683","ID2","ID3","PRDM1","GATA3","FOXP3")
+
+heat.goi <- list("T cell" = c1, 
+		"Memory/Naive" = c2,
+		"Effector function" = c3,
+		"Phenotype" = c4,
+		"Inhibitory and exhaustion" = c5,
+		"Transcription factors" = c6
+		) %>%
+		stack() %>%
+		dplyr::rename("Gene" = values,"Category" = ind) %>%
+		as_tibble()
+heat.goi
+```
+
+### Add reactive TCR data as metadata label to Seurat object
+
+```{r}
+reac.meta <- ifelse(str_replace_all(colnames(merged.18279.tumor.singlets), "_.{1,3}mgIpi_RNA","") %in% combined_reactive_numbered$Barcode,"Reactive","Other")
+merged.18279.tumor.singlets <- AddMetaData(merged.18279.tumor.singlets, reac.meta, col.name="ReactiveTCR")
+```
+
+### Add subcluster annotations as metadata label to Seurat object
+
+```{r}
+cluster_annot <- c(
+		"8" = "Macrophage",
+		"15" = "MonoMac",
+		"28" = "pDC",
+		"17" = "B_cells",
+		"13" = "Plasma_cells",
+		"2_1" = "CD8_TPEX",
+		"1_0" = "CD8_TEX",
+		"1_1" = "CD8_T_EM_1",
+		"2_0" = "CD8_T_EM_2",
+		"22_1" = "CD8_T_EM_3",
+		"22_2" = "CD8_T_EM_4",
+		"26_0" = "CD8_T_proliferating",
+		"3_0" = "CD4_T_Memory_1",
+		"22_0" = "CD4_T_Memory_2",
+		"3_1" = "CD4_T_CTL_1",
+		"12_0" = "CD4_T_CTL_2",
+		"12_1" = "CD4_Tfh",
+		"16_0" = "Treg",
+		"9_0" = "T_unknown_1",
+		"9_1" = "T_unknown_2",
+		"18_0" = "NK/T_1",
+		"18_1" = "NK/T_2",
+		"29" = "Mast",
+		"0" = "Melanoma_1",
+		"4" = "Melanoma_2",
+		"5" = "Melanoma_3",
+		"6" = "Melanoma_4",
+		"11" = "Melanoma_5",
+		"23" = "Melanoma_6",
+		"25" = "Melanoma_7",
+		"14" = "Melanoma_proliferating",
+		"21" = "Melanocytes",
+		"7" = "Endothelial_1",
+		"27" = "Endothelial_2",
+		"10" = "Fibroblasts_1",
+		"20" = "Fibroblasts_2",
+		"19" = "Pericytes/SmoothMuscle",
+		"24" = "Basal"
+)
+clustLabels <- as.data.frame(cluster_annot)[merged.18279.tumor.singlets$sub.cluster,]
+merged.18279.tumor.singlets <- AddMetaData(merged.18279.tumor.singlets, list(clustLabels), col.name = "CellAnnotation")
+
+merged.18279.tumor.singlets$CellAnnotation <- factor(x = merged.18279.tumor.singlets$CellAnnotation, 
+                                                    levels = as.character(cluster_annot))
+
+
+# Set up broader cell classes
+cluster_classes <- enframe(cluster_annot,name = "sub.cluster",value = "CellAnnotation") %>%
+  as_tibble() %>%
+  mutate(CellClass = case_when(
+    sub.cluster %in% c("8","15") ~ "Monocyte/\nMacrophage",
+    sub.cluster %in% c("28") ~ "DC",
+    sub.cluster %in% c("17","13") ~ "B",
+    sub.cluster %in% c("1_0","1_1","2_0","2_1","22_1","22_2","26_0","3_0","3_1","12_0","12_1","22_0","16_0","9_0","9_1","18_0","18_1") ~ "NK/T",
+    sub.cluster %in% c("29") ~ "Mast",
+    sub.cluster %in% c("0","4","5","6","11","23","25","14") ~ "Melanoma",
+    sub.cluster %in% c("21","7","27","10","20","19","24") ~ "Non-immune"
+    )
+  ) %>%
+  dplyr::select(-CellAnnotation) %>%
+  column_to_rownames(var = "sub.cluster") %>%
+  as.data.frame()
+
+clustClasses <- cluster_classes[merged.18279.tumor.singlets$sub.cluster,]
+merged.18279.tumor.singlets <- AddMetaData(merged.18279.tumor.singlets, list(clustClasses), col.name = "CellClass")
+```
+
+### Subset Seurat object to NK/T clusters
+
+```{r}
+merged.18279.tumor.singlets.t <- subset(merged.18279.tumor.singlets, subset = CellClass == "NK/T")
+```
+
+### Make metadata table of reactive TILs for heatmap annotations
+
+```{r}
+meta.df <- merged.18279.tumor.singlets.t@meta.data[,c("Patient","Timepoint","sub.cluster","CellAnnotation","CellClass","functional.cluster","ReactiveTCR")]
+
+meta.reac.df <- meta.df[meta.df$ReactiveTCR=="Reactive",]
+
+meta.reac <- full_join(
+  rownames_to_column(meta.reac.df,var="Barcode") %>% 
+    mutate(Barcode2 = str_replace_all(Barcode, "_.{1,3}mgIpi_RNA","")), 
+  combined_reactive_numbered, 
+  by=c("Barcode2" = "Barcode")
+  ) %>%
+  dplyr::select(-Barcode2) %>%
+  column_to_rownames(var="Barcode") %>%
+  as.data.frame()
+
+rownames_to_column(meta.reac,var="Barcode")
+```
+
+### Set up color coding vectors for heatmap annotations
+
+```{r}
+patient_cols <- c("P101" = "#59A14FFF",
+                  "P103" = "#B07AA1FF",
+                  "P104" = "#76B7B2FF", 
+                  "P108" = "#F6AAC9FF")
+
+projectils_cols <- data.frame(cbind(
+  c(levels(factor(merged.18279.tumor.singlets$functional.cluster)),"Unknown/Other"), 
+  c(paletteer::paletteer_d("RColorBrewer::Blues")[-c(1:2)], 
+    "#232061FF", 
+    paletteer::paletteer_d("RColorBrewer::Reds")[-c(1:2)],
+    "#CECECEFF")
+  )
+  ) %>% 
+  deframe()
+
+```
+
+### Subset data matrices to just the genes for plotting, and only reactive TILs
+
+```{r}
+rna.reactive <- as.matrix(merged.18279.tumor.singlets.t@assays$RNA$data[heat.goi$Gene,rownames(meta.reac)])
+
+```
+
+### Set column ordering
+
+```{r}
+reactive.order <- rownames_to_column(meta.reac,var="Cell") %>% 
+	as_tibble() %>% 
+  mutate(Patient = factor(Patient, c("P101","P104","P108","P103"))) %>%
+  dplyr::arrange(Patient) %>%
+	pull(Cell)
+
+```
+
+### Set up heatmap annotations
+
+```{r}
+ha1 <- HeatmapAnnotation(Patient = as.factor(meta.reac$Patient),
+                         col = list(Patient = patient_cols[as.factor(meta.reac$Patient)]), border = T)
+
+ha2 <- HeatmapAnnotation(CellState = as.factor(meta.reac$functional.cluster),
+                         col = list(CellState = projectils_cols[meta.reac$functional.cluster]), border = T)
+
+ha3 <- HeatmapAnnotation(TCR = anno_text(meta.reac$TCRnum,
+                                         gp = gpar(fontsize=6),
+                                         just = "left",
+                                         location = 0))
+```
+
+### Capture heatmap in plotted order and print TCR info
+
+```{r}
+#| fig-height: 8
+h0 <- ComplexHeatmap::Heatmap(rna.reactive,
+	cluster_rows = F,
+	cluster_columns = F,
+	cluster_row_slices = F,
+	row_split = factor(heat.goi$Category),
+	column_split = factor(meta.reac$functional.cluster),
+	column_order = reactive.order,
+	top_annotation = c(ha3,ha1,ha2),
+	border = T,
+  row_names_gp = gpar(fontsize=6,fontface="italic"),
+  row_title_gp = gpar(fontsize=8,fontface="bold"),
+  column_title_gp = gpar(fontsize=8,fontface="bold"),
+	show_column_names = F,
+	row_title_rot = 0,
+	row_title_side = "left",
+	row_names_side = "right",
+	col = circlize::colorRamp2(c(0,3),hcl_palette = "viridis"),
+	name = "Expression",
+	column_title = "Individual TILs with Reactive TCR",
+	use_raster = F,
+	width = unit(6, "cm")
+	)
+ht <- draw(h0)
+col_order <- column_order(ht)
+heatmap_barcodes_ordered <- colnames(rna.reactive)[as.numeric(unlist(col_order))]
+
+```
+
+
+
+## Get session info
+
+```{r}
+sessionInfo()
+```

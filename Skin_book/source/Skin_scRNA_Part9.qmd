@@ -1,0 +1,124 @@
+# Skin: Differential expression analysis, Post vs Pre 3rd vaccination {#sec-skin-differential-expression}
+
+## Set up Seurat workspace
+
+```{r }
+#| warning: false
+#| error: false
+
+# Load libraries
+library(presto)
+library(Seurat)
+library(tidyverse)
+library(patchwork)
+library(paletteer)
+library(msigdbr)
+library(ComplexHeatmap)
+library(circlize)
+library(muscat)
+library(edgeR)
+library(SingleCellExperiment)
+library(DESeq2)
+library(scuttle)
+library(gprofiler2)
+library(msigdbr)
+```
+
+## Load previous seurat object
+
+```{r}
+merged.18279.skin.singlets <- readRDS("Skin_scRNA_Part8.rds")
+```
+
+## Run pseudobulk differential expression test with `muscat`
+
+### Convert Seurat object to SingleCellExperiment
+
+```{r}
+merged.18279.skin.singlets[['RNA']] <- JoinLayers(merged.18279.skin.singlets[['RNA']])
+merged.sce <- as.SingleCellExperiment(merged.18279.skin.singlets, assay="RNA")
+```
+
+### Prep coldata and create pseudobulk of raw counts by sub-cluster x sample
+
+```{r}
+(mergedCondition.sce <- prepSCE(merged.sce,
+	kid = "sub.cluster",
+	gid = "Timepoint",
+	sid = "Sample",
+	drop=TRUE))
+
+pb <- aggregateData(mergedCondition.sce,
+    assay = "counts",fun="sum",
+    by = c("cluster_id", "sample_id"))
+
+```
+
+### Construct design & contrast matrix to compare Post3rd to Pre3rd timepoints
+
+```{r}
+ei <- metadata(mergedCondition.sce)$experiment_info
+mm <- model.matrix(~0 + ei$group_id)
+dim_name <- levels(ei$group_id)
+dimnames(mm) <- list(ei$sample_id, dim_name)
+contrast <- makeContrasts("Post3rd-Pre3rd", levels = mm)
+```
+
+### Run differential expression test via DESeq2
+
+```{r}
+#| cache: true
+#| cache-lazy: false
+res <- pbDS(pb, 
+            design = mm, 
+            contrast = contrast, 
+            method="DESeq2", 
+            min_cells = 20,
+            verbose = FALSE)
+
+# Combine results from all clusters into one tibble
+df <- bind_rows(res$table$`Post3rd-Pre3rd`, .id = "sub.cluster") %>% 
+	as_tibble()
+
+```
+
+### Show snippet of results from one cluster: upregulated genes in cluster 7
+
+```{r}
+df %>% 
+	dplyr::filter(p_adj.loc < 0.05 & sub.cluster=="7" & logFC > 0) %>% 
+	dplyr::arrange(p_adj.loc) %>% 
+	print(n=30)
+```
+
+### Write differential expression results to tsv
+
+```{r}
+write_tsv(df, "Skin_scRNA_PostVsPre3rd_DiffExp_results.tsv")
+```
+
+### Plot number of significant genes for all clusters
+
+```{r}
+all_subclusts <- enframe(unique(merged.18279.skin.singlets$sub.cluster),name=NULL,value="sub.cluster")
+df %>%
+  dplyr::filter(p_adj.loc < 0.05) %>%
+  group_by(sub.cluster) %>%
+  summarize(Up = count(logFC > 0),Down = (-1 * count(logFC < 0)),Total = (count(logFC > 0) + count(logFC < 0))) %>%
+  left_join(all_subclusts, ., by="sub.cluster") %>%
+  mutate(Up = replace_na(Up, 0), Down = replace_na(Down, 0), Total = replace_na(Total, 0)) %>%
+  pivot_longer(cols = c(Up,Down), names_to="Direction", values_to="NumberDE") %>%
+  ggplot(aes(x = reorder(sub.cluster,-Total), y = NumberDE, fill = Direction)) +
+  geom_col() +
+  theme_bw() +
+  xlab("Sub-cluster") +
+  ylab("Number of Differentially Expressed Genes\np_adj.loc < 0.05") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  
+```
+
+## Get session info
+
+```{r}
+sessionInfo()
+```

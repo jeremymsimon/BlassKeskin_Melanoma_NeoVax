@@ -1,0 +1,77 @@
+# Skin: Assisting cell type annotation with enrichR {#sec-skin-cluster-id-enrichr}
+
+## Set up Seurat workspace
+
+```{r }
+#| warning: false
+#| error: false
+
+# Load libraries
+library(data.table)
+library(devtools)
+library(presto) 
+library(glmGamPoi) 
+library(sctransform) 
+library(Seurat) 
+library(tidyverse)
+library(miQC) 
+library(SeuratWrappers)
+library(flexmix)
+library(SingleCellExperiment)
+library(SummarizedExperiment)
+library(readxl)
+library(fishpond)
+library(Matrix)
+library(speckle)
+library(scater)
+library(patchwork)
+library(vctrs)
+library(alevinQC)
+library(harmony)
+library(scDblFinder)
+library(cellXY)
+library(enrichR)
+
+# Set global options for Seurat v5 objects
+options(Seurat.object.assay.version = 'v5')
+```
+
+## Load sub-cluster specific marker gene table
+
+```{r}
+markers <- read_tsv("Skin_scRNA_prestoMarkers.tsv")
+```
+
+## Run enrichR to estimate cell type annotation
+
+```{r}
+#| warning: false
+#| error: false
+dbs <- c("Tabula_Sapiens","PanglaoDB_Augmented_2021","Azimuth_Cell_Types_2021","HuBMAP_ASCTplusB_augmented_2022","Azimuth_2023","CellMarker_2024")
+
+predictions <- NULL
+
+for(i in colnames(markers)[-1]) {
+	m <- pull(markers[,i])
+	res <- enrichr(m, dbs)
+	
+	pred <- res %>% 
+    	map_dfr(~ .x %>% as_tibble(), .id = "name") %>%
+    	group_by(name) %>%
+    	slice_min(Adjusted.P.value, n=1, with_ties = F) %>%
+    	dplyr::select(name,Term,Adjusted.P.value) %>%
+    	mutate(Term = str_replace_all(str_replace_all(Term,"[ -]","_"),"_+","_")) %>%
+    	add_column(sub.cluster = i, .before = 1)
+    	
+	predictions <- bind_rows(predictions, pred)	    
+}
+
+write_tsv(predictions,"Skin_scRNA_CellID_enrichR.tsv")
+
+```
+
+## Get session info
+
+```{r}
+sessionInfo()
+```

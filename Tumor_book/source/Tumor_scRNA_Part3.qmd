@@ -1,0 +1,128 @@
+# Tumor: Check patient sexes {#sec-tumor-patient-sex}
+
+## Set up Seurat workspace
+
+```{r }
+#| warning: false
+#| error: false
+
+# Load libraries
+library(data.table)
+library(devtools)
+library(presto)
+library(glmGamPoi)
+library(sctransform)
+library(Seurat)	
+library(tidyverse)
+library(miQC)
+library(SeuratWrappers)
+library(flexmix)
+library(SingleCellExperiment)
+library(SummarizedExperiment)
+library(readxl)
+library(fishpond)
+library(Matrix)
+library(speckle)
+library(scater)
+library(patchwork)
+library(vctrs)
+library(alevinQC)
+library(harmony)
+library(scDblFinder)
+library(cellXY)
+
+# Set global options for Seurat v5 objects
+options(Seurat.object.assay.version = 'v5')
+```
+
+## Load previously saved clustered object
+
+```{r}
+merged.18279.tumor.singlets <- readRDS("Tumor_scRNA_Part2.rds")
+```
+
+## Infer sex per cell using chrX and chrY gene counts using `cellXY`
+
+```{r}
+merged.18279.tumor.singlets[['RNA']] <- JoinLayers(merged.18279.tumor.singlets[['RNA']])
+xyPredict <- classifySex(x = merged.18279.tumor.singlets@assays$RNA$counts, 
+                         genome = "Hs", 
+                         qc = FALSE)
+merged.18279.tumor.singlets <- AddMetaData(merged.18279.tumor.singlets,
+                                           xyPredict$prediction,
+                                           col.name = "CellPredictedSex")
+
+```
+
+## Assign known sexes to each sample
+
+```{r}
+knownSex <- as.data.frame(cbind("Sample" = unique(merged.18279.tumor.singlets$Sample), "Sex" = c(rep("Male",3),rep("Male",3),rep("Female",1),rep("Male",1))))
+
+knownSex
+```
+
+## Summarize cell-wise sex predictions per Sample and compare to known labels
+
+If more than 80% of the individual cell sex predictions are consistent for a given Sample, we call that Sample as that sex, then match to known labels
+
+```{r}
+# Show snippet first
+rownames_to_column(merged.18279.tumor.singlets@meta.data,var="bc") %>%
+    as_tibble() %>%
+    dplyr::select(bc,CellPredictedSex,Sample) %>%
+    group_by(Sample) %>%
+    summarize(nMale = sum(CellPredictedSex=="Male"), 
+    	nFemale = sum(CellPredictedSex=="Female"), 
+    	nCells = n()
+    )
+
+# Now determine sex per sample and count matching vs non-matching labels
+rownames_to_column(merged.18279.tumor.singlets@meta.data,var="bc") %>%
+    as_tibble() %>%
+    dplyr::select(bc,CellPredictedSex,Sample) %>%
+    group_by(Sample) %>%
+    summarize(nMale = sum(CellPredictedSex=="Male"), 
+    	nFemale = sum(CellPredictedSex=="Female"), 
+    	nCells = n()
+    ) %>%
+    ungroup() %>%
+    mutate(PredictedSex = case_when(
+    	nMale / nCells > 0.8 ~ "Male",
+    	nFemale / nCells > 0.8 ~ "Female",
+    	T ~ "other"
+    	)
+    ) %>%
+    inner_join(knownSex,by="Sample") %>%
+    summarize(nEqual = sum(PredictedSex==Sex), nNotEqual = sum(PredictedSex != Sex))
+
+```
+
+## Since everything matches we now add Sex as a metadata label
+
+```{r}
+knownSexByCell <- enframe(merged.18279.tumor.singlets$Sample,name="bc",value="Sample") %>% 
+	inner_join(knownSex,by="Sample") %>% 
+	pull(Sex)
+	
+merged.18279.tumor.singlets <- AddMetaData(merged.18279.tumor.singlets,knownSexByCell,col.name="Sex")
+
+```
+
+## Plot UMAP of sex
+
+```{r}
+DimPlot(merged.18279.tumor.singlets,reduction = "umap.harmony", group.by = "Sex")
+```
+
+## Save the updated object
+
+```{r}
+saveRDS(merged.18279.tumor.singlets,file="Tumor_scRNA_Part3.rds")
+```
+
+## Get session info
+
+```{r}
+sessionInfo()
+```

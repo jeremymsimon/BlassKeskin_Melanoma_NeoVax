@@ -1,0 +1,148 @@
+# Tumor: Post-clustering QC and characterization {#sec-tumor-initial-cluster-qc}
+
+## Set up Seurat workspace
+
+```{r }
+#| warning: false
+#| error: false
+
+# Load libraries
+library(data.table)
+library(devtools)
+library(presto)
+library(glmGamPoi)
+library(sctransform)
+library(Seurat)
+library(tidyverse)
+library(miQC)	
+library(SeuratWrappers)
+library(flexmix)
+library(SingleCellExperiment)
+library(SummarizedExperiment)
+library(readxl)
+library(fishpond)
+library(Matrix)
+library(speckle)
+library(scater)
+library(patchwork)
+library(vctrs)
+library(alevinQC)
+library(harmony)
+library(scDblFinder)
+library(cellXY)
+
+# Set global options for Seurat v5 objects
+options(Seurat.object.assay.version = 'v5')
+```
+
+## Load previously saved clustered object
+
+```{r}
+merged.18279.tumor.singlets <- readRDS("Tumor_scRNA_Part3.rds")
+```
+
+## Set idents to preferred initial clustering resolution
+
+```{r}
+Idents(merged.18279.tumor.singlets) <- merged.18279.tumor.singlets$RNA_snn_res.1
+merged.18279.tumor.singlets$seurat_clusters <- merged.18279.tumor.singlets$RNA_snn_res.1
+DimPlot(merged.18279.tumor.singlets, reduction="umap.harmony", label=T)
+```
+
+## Plot QC
+
+```{r}
+#| fig-width: 15
+VlnPlot(merged.18279.tumor.singlets, features = "nCount_RNA", group.by="seurat_clusters",pt.size=0) + NoLegend()
+VlnPlot(merged.18279.tumor.singlets, features = "nFeature_RNA", group.by="seurat_clusters",pt.size=0) + NoLegend()
+VlnPlot(merged.18279.tumor.singlets, features = "percent.mt", group.by="seurat_clusters",pt.size=0) + NoLegend()
+```
+
+## Identify cursory marker genes of each cluster
+Note layers were already joined in previous session
+
+```{r}
+DefaultAssay(merged.18279.tumor.singlets) <- "RNA"
+
+vargenes <- presto::wilcoxauc(merged.18279.tumor.singlets, 'seurat_clusters', seurat_assay = 'RNA')
+top_vargenes <- top_markers(vargenes, n = 100, auc_min = 0.5, pct_in_min = 50, pct_out_max = 50)
+top_vargenes
+
+```
+
+## Plot genes from slide-tags preprint
+
+Sourced from [this preprint](https://www.biorxiv.org/content/10.1101/2023.04.01.535228v1.full.pdf)
+
+```{r}
+goi <- c("PMEL","MLANA","CCL5","LEF1","FOXP3","PAX5","IGHG3","KCNMA1","ZNF366","CUX2","COL1A1","PLVAP")
+VlnPlot(merged.18279.tumor.singlets,features=goi,assay="RNA",layer="data",flip=T,sort=T,stack=T)
+```
+
+## Plot other known markers
+Sourced from [this paper](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9700682/)
+
+```{r}
+#| fig-width: 20
+#| fig-height: 12
+tumor <- c("DCT","MLANA","MITF","PMEL","S100A1","TYR","APOC1")
+endothelial <- c("PECAM1","VWF")
+fibroblast <- c("COL3A1","COL1A1","COL1A2","LUM")
+tcell <- c("FGFBP2","KLRD1","CD3E","CD3D","GZMB","XCL2","GZMH","CST7","GZMK","GZMA","IFNG","GNLY","CCL4","NKG7","CCL5","CD8A","CD8B","CTLA4","TNFRSF4","BATF","ITM2A")
+mono <- c("LYZ","CD74","CD68")
+bcell <- c("MS4A1","CD79A")
+
+VlnPlot(merged.18279.tumor.singlets,features=tumor,assay="RNA",layer="data",flip=T,sort=T,stack=T) +
+  VlnPlot(merged.18279.tumor.singlets,features=endothelial,assay="RNA",layer="data",flip=T,sort=T,stack=T) +
+  VlnPlot(merged.18279.tumor.singlets,features=fibroblast,assay="RNA",layer="data",flip=T,sort=T,stack=T) +
+  VlnPlot(merged.18279.tumor.singlets,features=tcell,assay="RNA",layer="data",flip=T,sort=T,stack=T) +
+  VlnPlot(merged.18279.tumor.singlets,features=mono,assay="RNA",layer="data",flip=T,sort=T,stack=T) +
+  VlnPlot(merged.18279.tumor.singlets,features=bcell,assay="RNA",layer="data",flip=T,sort=T,stack=T) +
+  NoLegend()
+```
+
+## Plot top markers identified and canonical genes as a dotplot
+
+```{r}
+#| fig-width: 30
+#| fig-height: 8
+top_vargenes <- top_markers(vargenes, n = 5, auc_min = 0.5, pct_in_min = 50, pct_out_max = 50)
+top_markers <- top_vargenes %>%
+	select(-rank) %>% 
+	unclass() %>% 
+	stack() %>%
+	pull(values) %>%
+	unique() %>%
+	.[!is.na(.)]
+
+dotplotmarkers <- unique(c(top_markers,tumor,endothelial,fibroblast,tcell,mono,bcell))
+
+# Compute aggregated expression values of these genes and cluster them to order the figure
+rna <- AverageExpression(merged.18279.tumor.singlets,assay="RNA",slot="data")
+rna.sub <- rna$RNA[dotplotmarkers,]
+cors.genes <- as.dist(1-cor(as.matrix(t(rna.sub)),method="pearson"))
+hc.genes <- hclust(cors.genes)
+dotplotmarkers.sorted <- rownames(rna.sub)[hc.genes$order]
+
+# Plot
+DotPlot(merged.18279.tumor.singlets,features=dotplotmarkers.sorted,assay="RNA",cols=c("blue","red"),cluster.idents=T) + RotatedAxis()
+
+```
+
+## Plot expression of key genes in UMAP space
+
+```{r}
+#| fig-height: 16
+FeaturePlot(merged.18279.tumor.singlets, 
+	reduction="umap.harmony", 
+	features=c("CD8A","CD4","CTLA4","KLRC1","CD79A","PMEL","MLANA","LYZ","PECAM1","COL3A1","SFN","KRT19"),
+	order = T,
+	ncol = 2)
+```
+
+
+## Get session info
+
+```{r}
+sessionInfo()
+```

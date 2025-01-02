@@ -1,0 +1,832 @@
+# Skin: Deep phenotyping, cluster annotation, and exploration of Post vs Pre 3rd vaccination differences in cell proportions and expression {#sec-skin-cluster-annotation-phenotyping}
+
+## Set up Seurat workspace
+
+```{r }
+#| warning: false
+#| error: false
+
+# Load libraries
+library(presto)
+library(ggplot2)
+library(Seurat)
+library(tidyverse)
+library(patchwork)
+library(paletteer)
+library(msigdbr)
+library(ComplexHeatmap)
+library(circlize)
+library(SingleCellExperiment)
+library(muscat)
+library(limma)
+library(scuttle)
+library(lemon)
+library(ggforce)
+library(cowplot)
+library(speckle)
+library(knitr)
+
+```
+
+## Load previous saved object
+
+```{r}
+merged.18279.skin.singlets <- readRDS("Skin_scRNA_Part8.rds")
+```
+
+## Set up cluster groupings by cell class
+
+```{r}
+cluster_annot <- c(
+  		"0" = "MonoMac_1",
+		"1_0" = "CD4_T_Naive/CM",
+		"1_1" = "CD4_T_CTL",
+		"2_0" = "CD8_T_EM_1",
+		"2_1" = "CD8_T_Naive/CM_1",
+		"2_2" = "CD8_T_EM_2",
+		"3" = "MonoMac_2",
+		"4_0" = "CD8_T_Naive/CM_2",
+		"4_1" = "CD8_T_Naive/CM_3",
+		"5_0" = "NK/T_1",
+		"5_1" = "NK/T_2",
+		"5_2" = "NK_cells",
+		"6_0" = "T_unknown_1",
+		"6_1" = "CD8_T_EM_3",
+		"7" = "cDC2",
+		"8" = "Keratinocytes",
+		"9_0" = "Treg_1",
+		"9_1" = "Treg_2",
+		"10" = "Fibroblasts",
+		"11_0" = "T_unknown_2",
+		"11_1" = "T_unknown_3",
+		"12" = "MonoMac_3",
+		"13_0" = "Proliferating_T_cells_1",
+		"13_1" = "Proliferating_T_cells_2",
+		"14" = "pDC",
+		"15" = "DC_LAMP3",
+		"16" = "Mast",
+		"17" = "Endothelial",
+		"18" = "cDC1",
+		"19_0" = "NK/T_3",
+		"20" = "Pericytes/smooth_muscle",
+		"21" = "Basal_1",
+		"22" = "MonoMac_4",
+		"23" = "B_cells",
+		"24" = "Basal_2",
+		"25" = "Macrophages",
+		"26" = "Proliferating_cDC2"
+)
+clustLabels <- as.data.frame(cluster_annot)[merged.18279.skin.singlets$sub.cluster,]
+merged.18279.skin.singlets <- AddMetaData(merged.18279.skin.singlets, list(clustLabels), col.name = "CellAnnotation")
+```
+
+## Set up broader cell classes
+
+```{r}
+cluster_classes <- enframe(cluster_annot,name = "sub.cluster",value = "CellAnnotation") %>%
+  as_tibble() %>%
+  mutate(CellClass = case_when(
+    sub.cluster %in% c("0","3","12","22","25") ~ "Monocyte/\nMacrophage",
+    sub.cluster %in% c("14","18","7","26","15") ~ "DC",
+    sub.cluster %in% c("23") ~ "B",
+    sub.cluster %in% c("5_2","5_0","5_1","19_0","2_1","4_0","4_1","2_0","2_2","6_1","1_0","1_1","9_0","9_1","13_0","13_1","6_0","11_0","11_1") ~ "NK/T",
+    sub.cluster %in% c("16") ~ "Mast",
+    sub.cluster %in% c("8","10","17","20","21","24") ~ "Non-immune"
+    )
+  ) %>%
+  dplyr::select(-CellAnnotation) %>%
+  column_to_rownames(var = "sub.cluster") %>%
+  as.data.frame()
+
+clustClasses <- cluster_classes[merged.18279.skin.singlets$sub.cluster,]
+merged.18279.skin.singlets <- AddMetaData(merged.18279.skin.singlets, list(clustClasses), col.name = "CellClass")
+```
+
+## Plot original UMAP labeled by sub-cluster
+
+```{r}
+#| fig-width: 12
+#| fig-height: 9
+merged.18279.skin.singlets$CellAnnotation <- factor(x = merged.18279.skin.singlets$CellAnnotation, 
+                                                    levels = as.character(cluster_annot))
+DimPlot(merged.18279.skin.singlets, 
+        label = FALSE, 
+        reduction = "umap.harmony",
+        group.by = "CellAnnotation")
+```
+
+### Plot again split by Timepoint
+
+```{r}
+#| fig-width: 10
+#| fig-height: 5
+merged.18279.skin.singlets$CellAnnotation <- factor(x = merged.18279.skin.singlets$CellAnnotation, 
+                                                    levels = as.character(cluster_annot))
+merged.18279.skin.singlets$Timepoint <- factor(x = merged.18279.skin.singlets$Timepoint, levels = c("Pre3rd", "Post3rd"))
+
+DimPlot(merged.18279.skin.singlets, 
+        label = FALSE, 
+        reduction = "umap.harmony",
+        group.by = "CellAnnotation",
+        split.by = "Timepoint")
+```
+
+## Plot original UMAP labeled by broader cell class
+
+```{r}
+#| fig-width: 12
+#| fig-height: 9
+DimPlot(merged.18279.skin.singlets, 
+        label = FALSE, 
+        reduction = "umap.harmony",
+        group.by = "CellClass")
+```
+
+### Plot again except split by Timepoint
+
+```{r}
+#| fig-width: 15
+DimPlot(merged.18279.skin.singlets, 
+        label = FALSE, 
+        reduction = "umap.harmony",
+        split.by = "Timepoint",
+        group.by = "CellClass") +
+  theme_classic() +
+  theme(panel.border = element_rect(colour = "black",fill = NA)
+        )
+```
+
+## Now plot all cluster annotations using only ggplot functions, useful later
+
+```{r}
+umap <- rownames_to_column(as.data.frame(Embeddings(merged.18279.skin.singlets,reduction = "umap.harmony")),var="Barcode") %>%
+  as_tibble() %>%
+  left_join(enframe(merged.18279.skin.singlets$sub.cluster,name = "Barcode",value="sub.cluster"),by="Barcode") %>%
+  left_join(enframe(merged.18279.skin.singlets$CellAnnotation,name = "Barcode",value="CellAnnotation"),by="Barcode")
+
+umap %>%
+  ggplot(aes(x = umapharmony_1, y = umapharmony_2, color = CellAnnotation)) +
+  geom_point(size=0.25) +
+  theme_bw()
+
+```
+
+## Plot UMAP split by Ipilimumab concentration cohort and Timepoint
+
+```{r}
+#| fig-width: 10
+#| fig-height: 8
+rownames_to_column(as.data.frame(Embeddings(merged.18279.skin.singlets,reduction = "umap.harmony")),var="Barcode") %>%
+    as_tibble() %>%
+    left_join(enframe(merged.18279.skin.singlets$sub.cluster,name = "Barcode",value="sub.cluster"),by="Barcode") %>%
+    left_join(enframe(merged.18279.skin.singlets$CellClass,name = "Barcode",value="CellClass"),by="Barcode") %>%
+    mutate(Timepoint = str_split_i(Barcode,pattern = "_",i = 3)) %>%
+    mutate(IpiCohort = str_split_i(Barcode,pattern = "_", i = 4)) %>%
+    ggplot(aes(x = umapharmony_1, y = umapharmony_2, color = CellClass)) +
+    geom_point(size = 0.25) +
+    facet_grid(IpiCohort ~ fct_relevel(Timepoint,c("Pre3rd","Post3rd"))) +
+    theme_bw() +
+    geom_text(aes(x, y, label = lab),
+              data = data.frame(x = 13, 
+              					y = 14, 
+              					lab = c(paste0("n = ", table(merged.18279.skin.singlets$IpiCohort,merged.18279.skin.singlets$Timepoint)[1,1]),
+              							paste0("n = ", table(merged.18279.skin.singlets$IpiCohort,merged.18279.skin.singlets$Timepoint)[1,2]), 
+              							paste0("n = ", table(merged.18279.skin.singlets$IpiCohort,merged.18279.skin.singlets$Timepoint)[2,1]),
+              							paste0("n = ", table(merged.18279.skin.singlets$IpiCohort,merged.18279.skin.singlets$Timepoint)[2,2])
+              							),
+                            	Timepoint = c("Pre3rd","Post3rd","Pre3rd","Post3rd"),
+                            	IpiCohort = c("2.5mgIpi","2.5mgIpi","5mgIpi","5mgIpi")
+                            	), 
+                inherit.aes = FALSE
+            )
+```
+
+
+
+## Plot large heatmap demonstrating marker gene selectivity and cluster identity
+
+```{r}
+#| fig-height: 10
+#| fig-width: 7
+merged.18279.skin.singlets[['RNA']] <- JoinLayers(merged.18279.skin.singlets[['RNA']])
+merged.sce <- as.SingleCellExperiment(merged.18279.skin.singlets, assay="RNA")
+
+(mergedCondition.sce <- prepSCE(merged.sce,
+        kid = "sub.cluster",
+        gid = "Timepoint",
+        sid = "Sample",
+        drop = TRUE))
+
+all_genes_to_plot <- c("PTPRC","TCF4","TNFSF10","S100A8","S100A9","RNASE1","MARCO","SIGLEC1","CD14","ITGAM","ITGAX","FCN1","APOBEC3A","SERPINA1","FOLR2","LILRB5","CD163","APOE","FABP5","LIPA","APOC1","TREM2","CD68","CSF1R","FCGR3A","C1QA","C1QB","C1QC","ICAM1","LGALS9","CD40","CD80","CD86","HLA-DRA","HLA-DRB1","HLA-DQA1","HLA-DQA2","HLA-DQB1","HLA-DQB2","IL3RA","IRF4","IRF8","CLEC4C","CLEC9A","CLEC10A","CD1C","CD1E","FCER1A","CD207","MARCKSL1","FSCN1","LAMP3","LY75","FLT3","CD274","BANK1","CD79A","MS4A1","CD19","NCR1","NCAM1","CD3E","CD3G", "CD4","CD8A","TRAC","TRBC1","TRBC2","TRDC","IL7R","CCR7","SELL","CD27","TCF7","CXCR6","CCR6","NKG7","GNLY","GZMA","GZMB","PRF1","PDCD1","LAG3","TIGIT","CTLA4","TOX","BATF","TNFRSF4","ICOS","IL2RA","FOXP3","TNFRSF18","KIT","MKI67","TOP2A","HPGD","CPA3","SFN","CXCL14","CAV1","DCN","LUM","PECAM1","VWF","TAGLN","CALD1","KRT5","DMKN","TACSTD2")
+
+cluster_order <- c("0","3","12","22","25","14","18","7","26","15","23","5_2","5_0","5_1","19_0","2_1","4_0","4_1","2_0","2_2","6_1","1_0","1_1","9_0","9_1","13_0","13_1","6_0","11_0","11_1","16","8","10","17","20","21","24")
+slice_order <- factor(cluster_classes[cluster_order,], levels = unique(cluster_classes[cluster_order,]))
+
+gene_categories <- enframe(all_genes_to_plot,name=NULL,value="Gene") %>%
+  as_tibble() %>%
+  mutate(GeneClass = case_when(
+    Gene %in% c("PTPRC") ~ "Immune",
+    Gene %in% c("TCF4","TNFSF10","S100A8","S100A9","RNASE1","MARCO","SIGLEC1","CD14","ITGAM","ITGAX","FCN1","APOBEC3A","SERPINA1","FOLR2","LILRB5","CD163","APOE","FABP5","LIPA","APOC1","TREM2","CD68","CSF1R","FCGR3A","C1QA","C1QB","C1QC","ICAM1","LGALS9") ~ "Monocyte/\nMacrophage",
+    Gene %in% c("CD40","CD80","CD86","HLA-DRA","HLA-DRB1","HLA-DQA1","HLA-DQA2","HLA-DQB1","HLA-DQB2","IL3RA","IRF4","IRF8","CLEC4C","CLEC9A","CLEC10A","CD1C","CD1E","FCER1A","CD207","MARCKSL1","FSCN1","LAMP3","LY75","FLT3","CD274") ~ "Dendritic\ncell",
+    Gene %in% c("BANK1","CD79A","MS4A1","CD19") ~ "B cell",
+    Gene %in% c("NCR1","NCAM1") ~ "NK cell",
+    Gene %in% c("CD3E","CD3G","CD4","CD8A","TRAC","TRBC1","TRBC2","TRDC","IL7R","CCR7","SELL","CD27","TCF7") ~ "T cell",
+    Gene %in% c("CXCR6","CCR6","NKG7","GNLY","GZMA","GZMB","PRF1","PDCD1","LAG3","TIGIT","CTLA4","TOX","BATF","TNFRSF4","ICOS","IL2RA","FOXP3","TNFRSF18","KIT") ~ "T cell\nsubsets/\nNK cells",
+    Gene %in% c("MKI67","TOP2A") ~ "Proliferation",
+    Gene %in% c("SFN","CXCL14","CAV1") ~ "Keratinocyte",
+    Gene %in% c("DCN","LUM") ~ "Fibroblast",
+    Gene %in% c("HPGD","CPA3") ~ "Mast cell",
+    Gene %in% c("PECAM1","VWF") ~ "Endothelial",
+    Gene %in% c("TAGLN","CALD1") ~ "Pericyte/\nsmooth muscle",
+    Gene %in% c("KRT5","DMKN","TACSTD2") ~ "Basal"
+    )
+  )
+  
+gene_slice_order <- factor(gene_categories$GeneClass, levels = unique(gene_categories$GeneClass))
+  
+pb_all <- aggregateData(mergedCondition.sce,
+    assay = "counts",
+    fun = "mean",
+    by = "cluster_id")
+
+all_genes_to_plot <- all_genes_to_plot[all_genes_to_plot %in% rownames(assay(pb_all))]
+mat <- assay(pb_all)[all_genes_to_plot,cluster_order]
+colnames(mat) <- cluster_annot[cluster_order]
+ComplexHeatmap::Heatmap(mat,
+                        col = circlize::colorRamp2(c(0,3),hcl_palette = "viridis"),
+                        cluster_rows = FALSE,
+                        cluster_columns = FALSE,
+                        column_split = slice_order,
+                        row_split = gene_slice_order,
+                        row_title_rot = 0,
+                        cluster_column_slices = FALSE,
+                        border = TRUE,
+                        row_names_gp = gpar(fontsize=6,fontface="italic"),
+                        column_names_gp = gpar(fontsize=8),
+                        column_title_gp = gpar(fontsize=8,fontface="bold"),
+                        row_title_gp = gpar(fontsize=8,fontface="bold"),
+                        name = "Mean expression",
+                        heatmap_legend_param = list(title_position = "leftcenter-rot",border = TRUE)
+                  )
+
+```
+
+
+## Plot heatmap of functional genes
+
+```{r}
+#| fig-width: 6
+#| fig-height: 3.5
+functional_genes_to_plot <- c("IDO1","CCL2","CXCL10","CXCL2","CXCL3","IL10","IL18","IL1B","CXCL8","CXCL16","LYZ","IL15","CCL19","CXCL19","TNF","CCL3","CCL4","CCL5","XCL1","XCL2","IFNG","CSF2")
+
+functional_genes_to_plot <- functional_genes_to_plot[functional_genes_to_plot %in% rownames(assay(pb_all))]
+fx_mat <- assay(pb_all)[functional_genes_to_plot,cluster_order]
+colnames(fx_mat) <- cluster_annot[cluster_order]
+ComplexHeatmap::Heatmap(fx_mat,
+                        col = circlize::colorRamp2(c(0,3),hcl_palette = "viridis"),
+                        cluster_rows = FALSE,
+                        cluster_columns = FALSE,
+                        column_split = slice_order,
+                        cluster_column_slices = FALSE,
+                        border = TRUE,
+                        row_names_gp = gpar(fontsize=6,fontface="italic"),
+                        column_names_gp = gpar(fontsize=8),
+                        column_title_gp = gpar(fontsize=8,fontface="bold"),
+                        name = "Mean expression",
+                        heatmap_legend_param = list(title_position = "leftcenter-rot",border = TRUE)
+                  )
+```
+
+
+# Run propeller to test for differential abundance between Post3rd and Pre3rd timepoints
+
+Extract transformed cell proportions then run paired test via limma, modeling repeated measures as random effects. Exclude P109 as we only have data from one timepoint
+
+```{r}
+merged.18279.skin.singlets.paired <- subset(merged.18279.skin.singlets, subset = Patient != "P109")
+props_transformed <- getTransformedProps(clusters = merged.18279.skin.singlets.paired$sub.cluster,
+                                         sample = merged.18279.skin.singlets.paired$Sample,
+                                         transform = "logit")
+
+sample <- levels(as.factor(merged.18279.skin.singlets.paired$Sample))
+patient <- str_replace_all(levels(as.factor(merged.18279.skin.singlets.paired$Sample)),"_.+","")
+timepoint <- factor(str_replace_all(levels(as.factor(merged.18279.skin.singlets.paired$Sample)),".+Skin_(.+)_.{1,3}mgIpi.+","\\1"), levels = c("Pre3rd","Post3rd"))
+
+# Now model repeated measures as random effects
+mm.randomeffects <- model.matrix(~timepoint)
+dupcor <- duplicateCorrelation(props_transformed$TransformedProps, 
+                                design = mm.randomeffects,
+                                block = patient)
+
+fit1 <- lmFit(props_transformed$TransformedProps, 
+              design = mm.randomeffects, 
+              block = patient, 
+              correlation = dupcor$consensus)
+fit1 <- eBayes(fit1)
+summary(decideTests(fit1))
+knitr::kable(topTable(fit1, coef=2, n = Inf),format = "html")
+
+
+# Make table of clusters with significant proportional change
+sigProps <- topTable(fit1, coef=2, n = Inf)[topTable(fit1, coef=2, n = Inf)$adj.P.Val < 0.1,] %>%
+    rownames_to_column(var = "sub.cluster") %>%
+    as_tibble() %>%
+    dplyr::select(sub.cluster,adj.P.Val) %>%
+    mutate(Annot = cluster_annot[sub.cluster])
+
+sigProps
+```
+
+## Plot boxplots of cell proportion differences, Pre vs Post, connecting patients with a line
+
+```{r}
+#| fig-width: 14
+#| fig-height: 10
+totalsPerSample <- enframe(table(merged.18279.skin.singlets$Sample),name="Sample",value="TotalCells") %>%
+	as_tibble() %>%
+	mutate(TotalCells = as.numeric(TotalCells)) %>%
+	mutate(Sample = str_replace_all(Sample,"_.{1,3}mgIpi_RNA",""))
+
+CellAnnotation.labels <- enframe(cluster_annot,value="CellAnnotation") %>%
+  as_tibble() %>%
+  left_join(sigProps,by = c("CellAnnotation" = "Annot")) %>%
+    mutate(CellAnnotation.labels = case_when(
+      adj.P.Val < 0.05 ~ paste0(CellAnnotation,"**\nadj.p = ",round(adj.P.Val,4)),
+      (adj.P.Val >= 0.05) & (adj.P.Val < 0.1) ~ paste0(CellAnnotation,"*\nadj.p = ",round(adj.P.Val,4)),
+      is.na(adj.P.Val) ~ CellAnnotation
+      )
+    ) %>%
+  dplyr::select(CellAnnotation,CellAnnotation.labels) %>%
+  deframe()
+
+rownames_to_column(as.data.frame(merged.18279.skin.singlets@meta.data),var="Barcode") %>%
+    as_tibble() %>%
+    dplyr::select(Barcode,sub.cluster,Sample,CellAnnotation) %>%
+    mutate(Sample = str_replace_all(Sample,"_.{1,3}mgIpi_RNA","")) %>%
+    group_by(CellAnnotation,Sample) %>%
+    summarize(n = dplyr::n()) %>%
+    ungroup() %>%
+    complete(Sample,CellAnnotation) %>% 			# Makes sure 0s get represented rather than omitted
+    mutate(n = replace_na(n,0)) %>%
+    mutate(Patient = str_split_i(Sample,pattern = "_",i = 1)) %>%
+    mutate(Site = str_split_i(Sample,pattern = "_",i = 2)) %>%
+    mutate(Timepoint = str_split_i(Sample,pattern = "_",i = 3)) %>%
+    mutate(Timepoint = str_replace_all(Timepoint,"3rd","")) %>%
+    right_join(totalsPerSample,.,by="Sample") %>%
+	  group_by(Sample) %>%
+	  mutate(Proportion = n / TotalCells) %>%
+    left_join(sigProps,by = c("CellAnnotation" = "Annot")) %>%
+    mutate(CellAnnotation = factor(CellAnnotation, levels = cluster_annot[cluster_order])) %>%
+    ungroup() %>%
+  	ggplot(aes(x = fct_relevel(Timepoint,c("Pre","Post")),
+  	           y = Proportion,
+  	           fill = fct_relevel(Timepoint,c("Pre","Post"))
+  	          )
+  	       ) +
+	  geom_boxplot(outlier.shape=NA, width = 0.5) +
+    facet_wrap(~CellAnnotation,scales="free_y") +
+	  lemon::geom_pointpath(aes(group=Patient), 
+	                        position = position_jitterdodge(jitter.width = 0.1,
+	                                                        dodge.width = 0.4,
+	                                                        seed=123)
+	                        ) +
+	  facet_wrap(~CellAnnotation,scales="free_y",ncol=6,labeller = as_labeller(CellAnnotation.labels)) +
+    theme_bw() +
+    theme(axis.text.y = element_text(size=10),
+    	strip.text = element_text(size=8,face="bold"),
+    	axis.title = element_text(size=10,face="bold"),
+    	legend.text = element_text(size=10),
+    	legend.title = element_text(size=10,face="bold"),
+    	legend.key.size = unit(2,"line"),
+    	panel.grid = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(fill = NA, color = "black")
+    	) +
+	  xlab("Timepoint") +
+	  ylab("Skin composition fraction") +
+    labs(fill = "Timepoint") +
+    scale_fill_manual(values=c("lightgreen","darkgreen"))
+
+
+```
+
+
+## Plot the same except now facet both by Cluster and Ipilimumab concentration cohort
+
+```{r}
+#| fig-height: 40
+rownames_to_column(as.data.frame(merged.18279.skin.singlets@meta.data),var="Barcode") %>%
+    as_tibble() %>%
+    dplyr::select(Barcode,sub.cluster,Sample,CellAnnotation) %>%
+    group_by(CellAnnotation,Sample) %>%
+    summarize(n = dplyr::n()) %>%
+    ungroup() %>%
+    complete(Sample,CellAnnotation) %>% 			# Makes sure 0s get represented rather than omitted
+    mutate(n = replace_na(n,0)) %>%
+    mutate(Patient = str_split_i(Sample,pattern = "_",i = 1)) %>%
+    mutate(Site = str_split_i(Sample,pattern = "_",i = 2)) %>%
+    mutate(Timepoint = str_split_i(Sample,pattern = "_",i = 3)) %>%
+    mutate(Timepoint = str_replace_all(Timepoint,"3rd","")) %>%
+    mutate(IpiCohort = str_split_i(Sample,pattern = "_",i = 4)) %>%
+    mutate(Sample = str_replace_all(Sample,"_.{1,3}mgIpi_RNA",""))  %>%
+    right_join(totalsPerSample,.,by="Sample") %>%
+	  group_by(Sample) %>%
+	  mutate(Proportion = n / TotalCells) %>%
+    left_join(sigProps,by = c("CellAnnotation" = "Annot")) %>%
+    mutate(CellAnnotation = factor(CellAnnotation, levels = cluster_annot[cluster_order])) %>%
+    ungroup() %>%
+  	ggplot(aes(x = fct_relevel(Timepoint,c("Pre","Post")),
+  	           y = Proportion,
+  	           fill = fct_relevel(Timepoint,c("Pre","Post"))
+  	          )
+  	       ) +
+	  geom_boxplot(outlier.shape=NA, width = 0.5) +
+    geom_point(aes(color = Patient), position = position_jitterdodge(jitter.width=0.1,dodge.width = 0.4)) +
+    facet_grid(CellAnnotation~IpiCohort,scales="free") +
+    theme_bw() +
+    theme(axis.text.y = element_text(size=10),
+    	strip.text = element_text(size=8,face="bold"),
+    	axis.title = element_text(size=10,face="bold"),
+    	legend.text = element_text(size=10),
+    	legend.title = element_text(size=10,face="bold"),
+    	legend.key.size = unit(2,"line"),
+    	panel.grid = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(fill = NA, color = "black"),
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)
+    	) +
+	  xlab("Timepoint") +
+	  ylab("Skin composition fraction") +
+    labs(fill = "Cohort", color = "Patient") +
+    scale_color_manual(values = c("#59A14FFF",  
+                                  "#B07AA1FF", 
+                                  "#76B7B2FF", 
+                                  "#FBB258FF", 
+                                  "#DC050CFF", 
+                                  "#F6AAC9FF", 
+                                  "#5CA2E5FF", 
+                                  "#615EBFFF", 
+                                  "#826250FF")) +
+    scale_fill_manual(values=c("lightgreen","darkgreen"))
+```
+
+
+## Prepare UMAP with clusters of interest circled
+
+```{r}
+umap_circled <- umap %>%
+    ggplot(aes(x = umapharmony_1, y = umapharmony_2, color = CellAnnotation)) +
+    geom_point(size = 0.25) +
+    theme_classic() +
+    geom_shape(data = umap %>% dplyr::filter(sub.cluster=="0"), 
+               stat = "ellipse", 
+               expand = unit(0.25, 'cm'), 
+               fill = NA, 
+               color = "black", 
+               linetype = 2) +
+    geom_shape(data = umap %>% dplyr::filter(sub.cluster=="12"), 
+               stat = "ellipse", 
+               expand = unit(0.25, 'cm'), 
+               fill = NA, 
+               color = "black", 
+               linetype = 2) +
+    geom_shape(data = umap %>% dplyr::filter(sub.cluster=="15"), 
+               stat = "ellipse", 
+               expand = unit(0.25, 'cm'), 
+               fill = NA, 
+               color = "black", 
+               linetype = 2) +
+    geom_shape(data = umap %>% dplyr::filter(sub.cluster=="5_2"),
+               stat = "ellipse",
+               expand = unit(0.25, 'cm'),
+               fill = NA,
+               color = "black",
+               linetype = 2) +
+  guides(color = "none")
+
+umap_circled
+
+```
+
+## For each cluster of interest, plot differentially expressed genes as a heatmap and add annotation layer illustrating changing cell proportions
+
+### Create function for centering expression values around mean of Pre3rd samples
+
+```{r}
+controlCenter <- function(data_matrix = NULL, pattern_for_controls = NULL, pattern_for_others = NULL) {
+  stopifnot(is.matrix(data_matrix))
+
+    ctrl_means <- apply(data_matrix, 1, function(x) {mean(x[grep(pattern_for_controls,colnames(data_matrix))])})
+    data_matrix_centered <- as.data.frame(matrix(data=NA,nrow=length(rownames(data_matrix)),ncol=length(colnames(data_matrix))))
+    rownames(data_matrix_centered) <- rownames(data_matrix)
+    colnames(data_matrix_centered) <- colnames(data_matrix)[c(grep(pattern_for_controls,colnames(data_matrix)),grep(pattern_for_others,colnames(data_matrix)))]
+
+    for (i in 1:length(ctrl_means)) {
+      data_matrix_centered[i,] <- as.numeric(data_matrix[i,c(grep(pattern_for_controls,colnames(data_matrix)),grep(pattern_for_others,colnames(data_matrix)))]) - as.numeric(ctrl_means[i])
+    }
+  return <- data_matrix_centered
+  
+}
+
+```
+
+### Create pseudobulks for plotting
+Use mean (rather than sum) to control for varying number of cells
+```{r}
+(mergedCondition.sce <- prepSCE(merged.sce,
+        kid = "sub.cluster",
+        gid = "Timepoint",
+        sid = "Sample",
+        drop = TRUE))
+
+pb <- aggregateData(mergedCondition.sce,
+    assay = "counts",
+    fun = "mean",
+    by = c("cluster_id", "sample_id"))
+```
+
+### Create cell proportion table per Sample and per sub-cluster
+
+```{r}
+props <- rownames_to_column(as.data.frame(merged.18279.skin.singlets@meta.data),var="Barcode") %>%
+    as_tibble() %>%
+    dplyr::select(Barcode,CellAnnotation,Sample) %>%
+    mutate(Sample = str_replace_all(Sample,"_.{1,3}mgIpi_RNA","")) %>%
+    group_by(CellAnnotation,Sample) %>%
+    summarize(n = dplyr::n()) %>%
+    ungroup() %>%
+    complete(Sample,CellAnnotation) %>% 			# Makes sure 0s get represented rather than omitted
+    mutate(n = replace_na(n,0)) %>%
+    mutate(Patient = str_split_i(Sample,pattern = "_",i = 1)) %>%
+    mutate(Site = str_split_i(Sample,pattern = "_",i = 2)) %>%
+    mutate(Timepoint = str_split_i(Sample,pattern = "_",i = 3)) %>%
+    mutate(Timepoint = str_replace_all(Timepoint,"3rd","")) %>%
+    right_join(totalsPerSample,.,by="Sample") %>%
+    mutate(Sample = str_replace_all(Sample,"_Skin","")) %>%
+    mutate(Sample = str_replace_all(Sample,"3rd","")) %>%
+	  group_by(Sample) %>%
+	  mutate(Proportion = n / TotalCells)
+
+props
+```
+
+### Cluster 0
+
+```{r}
+# Subset to genes of interest and reorder columns
+cluster <- "0"
+goi <- c("IL6","TNF","CXCL10","CXCL11","CCL2","CCL3","CCL4","CCL5","CCL8","IL15","SELL")
+pb_cluster <- assays(pb)[[cluster]][goi,]
+pb_cluster_cnames <- str_replace_all(str_replace_all(colnames(pb_cluster),"3rd_.{1,3}mgIpi_RNA",""),"_Skin","")
+colnames(pb_cluster) <- pb_cluster_cnames
+pb_cluster_cnames_sorted <- pb_cluster_cnames[c(which(grepl("Pre",pb_cluster_cnames)),which(grepl("Post",pb_cluster_cnames)))]
+
+# Subset proportions table
+cluster_props <- props %>%
+  dplyr::filter(CellAnnotation == cluster_annot[cluster]) %>%
+  dplyr::select(Sample,Proportion) %>%
+  ungroup() %>%
+  mutate(Sample = fct_relevel(as.factor(Sample),pb_cluster_cnames_sorted)) %>%
+  dplyr::arrange(Sample) %>%
+  as.data.frame()
+
+# Center expression around mean of Pre samples
+pb_centered <- controlCenter(pb_cluster[,pb_cluster_cnames_sorted], pattern_for_controls = "Pre", pattern_for_others = "Post")
+
+# Plot heatmap
+timepoints <- as.factor(str_split_i(pb_cluster_cnames_sorted,"_",2))
+ha1 <- HeatmapAnnotation(Timepoint = timepoints,
+                         show_legend = FALSE,
+                         col = list(Timepoint = setNames(c("lightgreen", "darkgreen"), c("Pre", "Post"))), 
+                         border = TRUE)
+ha2 <- HeatmapAnnotation(Proportion = anno_barplot(round(cluster_props$Proportion,3), 
+                                                   gp = gpar(fill = c(
+                                                      rep("lightgreen",length(which(str_detect(cluster_props$Sample,"Pre")))), 
+                                                      rep("darkgreen",length(which(str_detect(cluster_props$Sample,"Post"))))
+                                                      )
+                                                     ), 
+                                                   add_numbers = TRUE,
+                                                   numbers_rot = 0
+                                                   )
+                         )
+
+p0 <- ComplexHeatmap::Heatmap(pb_centered,
+                        cluster_rows = FALSE,
+                        cluster_columns = FALSE,
+                        column_split = factor(timepoints,levels = c("Pre","Post")),
+                        column_labels = str_replace_all(colnames(pb_centered),"_Pre|_Post",""),
+                        row_names_gp = gpar(fontface = "italic",fontsize = 8),
+                        column_names_gp = gpar(fontsize = 8),
+                        col = colorRamp2(c(0,5),hcl_palette = "viridis"),
+                        border = TRUE,
+                        column_title = paste0("Cluster ", cluster, ": ",cluster_annot[cluster]),
+                        column_title_gp = gpar(fontface = "bold"),
+                        name = "Expression relative to Pre",
+                        top_annotation = c(ha1,ha2),
+                        show_heatmap_legend = FALSE
+) %>% 
+  draw() %>% 
+  grid.grabExpr()
+
+```
+
+### Cluster 12
+
+```{r}
+# Subset to genes of interest and reorder columns
+cluster <- "12"
+goi <- c("CXCL10","CXCL9","CXCL11","CCL8","IL18","IL6","TNF")
+pb_cluster <- assays(pb)[[cluster]][goi,]
+pb_cluster_cnames <- str_replace_all(str_replace_all(colnames(pb_cluster),"3rd_.{1,3}mgIpi_RNA",""),"_Skin","")
+colnames(pb_cluster) <- pb_cluster_cnames
+pb_cluster_cnames_sorted <- pb_cluster_cnames[c(which(grepl("Pre",pb_cluster_cnames)),which(grepl("Post",pb_cluster_cnames)))]
+
+# Subset proportions table
+cluster_props <- props %>%
+  dplyr::filter(CellAnnotation == cluster_annot[cluster]) %>%
+  dplyr::select(Sample,Proportion) %>%
+  ungroup() %>%
+  mutate(Sample = fct_relevel(as.factor(Sample),pb_cluster_cnames_sorted)) %>%
+  dplyr::arrange(Sample) %>%
+  as.data.frame()
+
+# Center expression around mean of Pre samples
+pb_centered <- controlCenter(pb_cluster[,pb_cluster_cnames_sorted], pattern_for_controls = "Pre", pattern_for_others = "Post")
+
+# Plot heatmap
+timepoints <- as.factor(str_split_i(pb_cluster_cnames_sorted,"_",2))
+ha1 <- HeatmapAnnotation(Timepoint = timepoints,
+                         show_legend = FALSE,
+                         col = list(Timepoint = setNames(c("lightgreen", "darkgreen"), c("Pre", "Post"))), 
+                         border = TRUE)
+ha2 <- HeatmapAnnotation(Proportion = anno_barplot(round(cluster_props$Proportion,3), 
+                                                   gp = gpar(fill = c(
+                                                      rep("lightgreen",length(which(str_detect(cluster_props$Sample,"Pre")))), 
+                                                      rep("darkgreen",length(which(str_detect(cluster_props$Sample,"Post"))))
+                                                      )
+                                                     ),
+                                                   add_numbers = TRUE,
+                                                   numbers_rot = 0
+                                                   )
+                         )
+
+p12 <- ComplexHeatmap::Heatmap(pb_centered,
+                        cluster_rows = FALSE,
+                        cluster_columns = FALSE,
+                        column_split = factor(timepoints,levels = c("Pre","Post")),
+                        column_labels = str_replace_all(colnames(pb_centered),"_Pre|_Post",""),
+                        row_names_gp = gpar(fontface = "italic",fontsize = 8),
+                        column_names_gp = gpar(fontsize = 8),
+                        col = colorRamp2(c(0,5),hcl_palette = "viridis"),
+                        border = TRUE,
+                        column_title = paste0("Cluster ", cluster, ": ", cluster_annot[cluster]),
+                        column_title_gp = gpar(fontface = "bold"),
+                        name = "Expression relative to Pre",
+                        top_annotation = c(ha1,ha2),
+                        show_heatmap_legend = FALSE
+) %>% 
+  draw() %>% 
+  grid.grabExpr()
+```
+
+### Cluster 15
+
+```{r}
+# Subset to genes of interest and reorder columns
+cluster <- "15"
+goi <- c("CCL19","CD40","CD86","CXCL9")
+pb_cluster <- assays(pb)[[cluster]][goi,]
+pb_cluster_cnames <- str_replace_all(str_replace_all(colnames(pb_cluster),"3rd_.{1,3}mgIpi_RNA",""),"_Skin","")
+colnames(pb_cluster) <- pb_cluster_cnames
+pb_cluster_cnames_sorted <- pb_cluster_cnames[c(which(grepl("Pre",pb_cluster_cnames)),which(grepl("Post",pb_cluster_cnames)))]
+
+# Subset proportions table
+cluster_props <- props %>%
+  dplyr::filter(CellAnnotation == cluster_annot[cluster]) %>%
+  dplyr::select(Sample,Proportion) %>%
+  ungroup() %>%
+  mutate(Sample = fct_relevel(as.factor(Sample),pb_cluster_cnames_sorted)) %>%
+  dplyr::arrange(Sample) %>%
+  as.data.frame()
+
+# Center expression around mean of Pre samples
+pb_centered <- controlCenter(pb_cluster[,pb_cluster_cnames_sorted], pattern_for_controls = "Pre", pattern_for_others = "Post")
+
+# Plot heatmap
+timepoints <- as.factor(str_split_i(pb_cluster_cnames_sorted,"_",2))
+ha1 <- HeatmapAnnotation(Timepoint = timepoints,
+                         show_legend = FALSE,
+                         col = list(Timepoint = setNames(c("lightgreen", "darkgreen"), c("Pre", "Post"))), 
+                         border = TRUE)
+ha2 <- HeatmapAnnotation(Proportion = anno_barplot(round(cluster_props$Proportion,3), 
+                                                   gp = gpar(fill = c(
+                                                      rep("lightgreen",length(which(str_detect(cluster_props$Sample,"Pre")))), 
+                                                      rep("darkgreen",length(which(str_detect(cluster_props$Sample,"Post"))))
+                                                      )
+                                                     ),
+                                                   add_numbers = TRUE,
+                                                   numbers_rot = 0
+                                                   )
+                         )
+
+p15 <- ComplexHeatmap::Heatmap(pb_centered,
+                        cluster_rows = FALSE,
+                        cluster_columns = FALSE,
+                        column_split = factor(timepoints,levels = c("Pre","Post")),
+                        column_labels = str_replace_all(colnames(pb_centered),"_Pre|_Post",""),
+                        row_names_gp = gpar(fontface = "italic",fontsize = 8),
+                        column_names_gp = gpar(fontsize = 8),
+                        col = colorRamp2(c(0,5),hcl_palette = "viridis"),
+                        border = TRUE,
+                        column_title = paste0("Cluster ", cluster, ": ",cluster_annot[cluster]),
+                        column_title_gp = gpar(fontface = "bold"),
+                        name = "Expression relative to Pre",
+                        top_annotation = c(ha1,ha2),
+                        show_heatmap_legend = FALSE
+) %>% 
+  draw() %>% 
+  grid.grabExpr()
+```
+
+### Cluster 5_2
+
+```{r}
+# Subset to genes of interest and reorder columns
+cluster <- "5_2"
+goi <- c("GNLY","GZMB","PRF1")
+pb_cluster <- assays(pb)[[cluster]][goi,]
+pb_cluster_cnames <- str_replace_all(str_replace_all(colnames(pb_cluster),"3rd_.{1,3}mgIpi_RNA",""),"_Skin","")
+colnames(pb_cluster) <- pb_cluster_cnames
+pb_cluster_cnames_sorted <- pb_cluster_cnames[c(which(grepl("Pre",pb_cluster_cnames)),which(grepl("Post",pb_cluster_cnames)))]
+
+# Subset proportions table
+cluster_props <- props %>%
+  dplyr::filter(CellAnnotation == cluster_annot[cluster]) %>%
+  dplyr::select(Sample,Proportion) %>%
+  ungroup() %>%
+  mutate(Sample = fct_relevel(as.factor(Sample),pb_cluster_cnames_sorted)) %>%
+  dplyr::arrange(Sample) %>%
+  as.data.frame()
+
+# Center expression around mean of Pre samples
+pb_centered <- controlCenter(pb_cluster[,pb_cluster_cnames_sorted], pattern_for_controls = "Pre", pattern_for_others = "Post")
+
+# Plot heatmap
+timepoints <- as.factor(str_split_i(pb_cluster_cnames_sorted,"_",2))
+ha1 <- HeatmapAnnotation(Timepoint = timepoints,
+                         show_legend = FALSE,
+                         col = list(Timepoint = setNames(c("lightgreen", "darkgreen"), c("Pre", "Post"))), 
+                         border = TRUE)
+ha2 <- HeatmapAnnotation(Proportion = anno_barplot(round(cluster_props$Proportion,3), 
+                                                   gp = gpar(fill = c(
+                                                      rep("lightgreen",length(which(str_detect(cluster_props$Sample,"Pre")))), 
+                                                      rep("darkgreen",length(which(str_detect(cluster_props$Sample,"Post"))))
+                                                      )
+                                                     ),
+                                                   add_numbers = TRUE,
+                                                   numbers_rot = 0
+                                                   )
+                         )
+
+p5_2 <- ComplexHeatmap::Heatmap(pb_centered,
+                        cluster_rows = FALSE,
+                        cluster_columns = FALSE,
+                        column_split = factor(timepoints,levels = c("Pre","Post")),
+                        column_labels = str_replace_all(colnames(pb_centered),"_Pre|_Post",""),
+                        row_names_gp = gpar(fontface = "italic",fontsize = 8),
+                        column_names_gp = gpar(fontsize = 8),
+                        col = colorRamp2(c(0,5),hcl_palette = "viridis"),
+                        border = TRUE,
+                        column_title = paste0("Cluster ", cluster, ": ",cluster_annot[cluster]),
+                        column_title_gp = gpar(fontface = "bold"),
+                        name = "Expression relative to Pre",
+                        top_annotation = c(ha1,ha2),
+                        show_heatmap_legend = FALSE
+) %>% 
+  draw() %>% 
+  grid.grabExpr()
+  
+```
+
+## Assemble final figure
+
+```{r}
+#| fig-height: 8
+#| fig-width: 14
+wrap_plots(A = p0, 
+           B = p12, 
+           C = p15, 
+           D = p5_2,
+           U = umap_circled,
+            design = "C##A
+                      DUUB
+                      #UU#")
+
+```
+
+
+## Get session info
+
+```{r}
+sessionInfo()
+```

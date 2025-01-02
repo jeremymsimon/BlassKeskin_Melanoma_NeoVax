@@ -1,0 +1,850 @@
+# Tumor: Deep phenotyping, cluster annotation, and exploration of tumor cells {#sec-tumor-cluster-annotation-phenotyping}
+
+## Set up Seurat workspace
+
+```{r }
+#| warning: false
+#| error: false
+
+# Load libraries
+library(presto)
+library(Seurat)
+library(tidyverse)
+library(patchwork)
+library(paletteer)
+library(msigdbr)
+library(ComplexHeatmap)
+library(circlize)
+library(lemon)
+library(muscat)
+library(scater)
+
+```
+
+## Load scRNA analysis seurat object
+
+```{r}
+merged.18279.tumor.singlets <- readRDS("Tumor_scRNA_Part8.rds")
+```
+
+## Set up cluster groupings by cell class
+
+```{r}
+cluster_annot <- c(
+		"8" = "Macrophage",
+		"15" = "MonoMac",
+		"28" = "pDC",
+		"17" = "B_cells",
+		"13" = "Plasma_cells",
+		"2_1" = "CD8_TPEX",
+		"1_0" = "CD8_TEX",
+		"1_1" = "CD8_T_EM_1",
+		"2_0" = "CD8_T_EM_2",
+		"22_1" = "CD8_T_EM_3",
+		"22_2" = "CD8_T_EM_4",
+		"26_0" = "CD8_T_proliferating",
+		"3_0" = "CD4_T_Memory_1",
+		"22_0" = "CD4_T_Memory_2",
+		"3_1" = "CD4_T_CTL_1",
+		"12_0" = "CD4_T_CTL_2",
+		"12_1" = "CD4_Tfh",
+		"16_0" = "Treg",
+		"9_0" = "T_unknown_1",
+		"9_1" = "T_unknown_2",
+		"18_0" = "NK/T_1",
+		"18_1" = "NK/T_2",
+		"29" = "Mast",
+		"0" = "Melanoma_1",
+		"4" = "Melanoma_2",
+		"5" = "Melanoma_3",
+		"6" = "Melanoma_4",
+		"11" = "Melanoma_5",
+		"23" = "Melanoma_6",
+		"25" = "Melanoma_7",
+		"14" = "Melanoma_proliferating",
+		"21" = "Melanocytes",
+		"7" = "Endothelial_1",
+		"27" = "Endothelial_2",
+		"10" = "Fibroblasts_1",
+		"20" = "Fibroblasts_2",
+		"19" = "Pericytes/SmoothMuscle",
+		"24" = "Basal"
+)
+clustLabels <- as.data.frame(cluster_annot)[merged.18279.tumor.singlets$sub.cluster,]
+merged.18279.tumor.singlets <- AddMetaData(merged.18279.tumor.singlets, list(clustLabels), col.name = "CellAnnotation")
+
+```
+
+## Set up broader cell classes
+
+```{r}
+cluster_classes <- enframe(cluster_annot,name = "sub.cluster",value = "CellAnnotation") %>%
+  as_tibble() %>%
+  mutate(CellClass = case_when(
+    sub.cluster %in% c("8","15") ~ "Monocyte/\nMacrophage",
+    sub.cluster %in% c("28") ~ "DC",
+    sub.cluster %in% c("17","13") ~ "B",
+    sub.cluster %in% c("1_0","1_1","2_0","2_1","22_1","22_2","26_0","3_0","3_1","12_0","12_1","22_0","16_0","9_0","9_1","18_0","18_1") ~ "NK/T",
+    sub.cluster %in% c("29") ~ "Mast",
+    sub.cluster %in% c("0","4","5","6","11","23","25","14") ~ "Melanoma",
+    sub.cluster %in% c("21","7","27","10","20","19","24") ~ "Non-immune"
+    )
+  ) %>%
+  dplyr::select(-CellAnnotation) %>%
+  column_to_rownames(var = "sub.cluster") %>%
+  as.data.frame()
+
+clustClasses <- cluster_classes[merged.18279.tumor.singlets$sub.cluster,]
+merged.18279.tumor.singlets <- AddMetaData(merged.18279.tumor.singlets, list(clustClasses), col.name = "CellClass")
+```
+
+## Plot original UMAP labeled by sub-cluster
+
+```{r}
+#| fig-width: 12
+#| fig-height: 9
+merged.18279.tumor.singlets$CellAnnotation <- factor(x = merged.18279.tumor.singlets$CellAnnotation, 
+                                                    levels = as.character(cluster_annot))
+DimPlot(merged.18279.tumor.singlets, 
+        label = FALSE, 
+        reduction = "umap.harmony",
+        group.by = "CellAnnotation")
+```
+
+### Plot again split by Timepoint
+
+```{r}
+#| fig-width: 12
+#| fig-height: 6
+merged.18279.tumor.singlets$CellAnnotation <- factor(x = merged.18279.tumor.singlets$CellAnnotation, 
+                                                    levels = as.character(cluster_annot))
+merged.18279.tumor.singlets$Timepoint <- factor(x = merged.18279.tumor.singlets$Timepoint, levels = c("W00", "W12", "W20", "PD"))
+
+DimPlot(merged.18279.tumor.singlets, 
+        label = FALSE, 
+        reduction = "umap.harmony",
+        group.by = "CellAnnotation",
+        split.by = "Timepoint") +
+  theme_classic() +
+  theme(panel.border = element_rect(colour = "black",fill = NA)
+        )
+```
+
+## Plot original UMAP labeled by broader cell class
+
+```{r}
+#| fig-width: 12
+#| fig-height: 9
+DimPlot(merged.18279.tumor.singlets, 
+        label = FALSE, 
+        reduction = "umap.harmony",
+        group.by = "CellClass") +
+  scale_color_manual(values = c("#5AAE61", 
+	                             "#D9F0D3", 
+	                             "#E08214", 
+	                             "#762A83", 
+	                             "gray50", 
+	                             paletteer_d("ggsci::brown_material")[3], 
+	                             "gray90"),
+	                  limits=unique(cluster_classes$CellClass)
+		)
+```
+
+
+### Plot again except split by Timepoint
+
+```{r}
+#| fig-width: 18
+DimPlot(merged.18279.tumor.singlets, 
+        label = FALSE, 
+        reduction = "umap.harmony",
+        split.by = "Timepoint",
+        group.by = "CellClass") +
+  theme_classic() +
+  theme(panel.border = element_rect(colour = "black",fill = NA)
+        ) +
+  scale_color_manual(values = c("#5AAE61", 
+	                             "#D9F0D3", 
+	                             "#E08214", 
+	                             "#762A83", 
+	                             "gray50", 
+	                             paletteer_d("ggsci::brown_material")[3], 
+	                             "gray90"),
+	                  limits=unique(cluster_classes$CellClass)
+		)
+```
+
+
+## Plot large heatmap demonstrating marker gene selectivity and cluster identity
+
+```{r}
+#| fig-height: 10
+#| fig-width: 10
+merged.18279.tumor.singlets[['RNA']] <- JoinLayers(merged.18279.tumor.singlets[['RNA']])
+merged.sce <- as.SingleCellExperiment(merged.18279.tumor.singlets, assay="RNA")
+
+(mergedCondition.sce <- prepSCE(merged.sce,
+        kid = "sub.cluster",
+        gid = "Timepoint",
+        sid = "Sample",
+        drop = TRUE))
+
+all_genes_to_plot <- c("PTPRC","CD14","APOE","ICAM1","RNASE1","S100A8","S100A9","C1QA","C1QB","C1QC","ITGAX","CD1C","FCER1A","CSF1R","CD68","CD163","FASLG","FOLR2","MS4A4A","SELENOP","MSR1","FCGR3A","IL3RA","IRF4","IRF8","CLEC4C","CD40","CD80","CD86","HLA-DRA","HLA-DRB1","HLA-DQA1","HLA-DQA2","HLA-DQB1","HLA-DQB2","CD79A","BANK1","MS4A1","CD19","MZB1","IGHG1","XBP1","NCR1","NCAM1","CD3E","CD3G","CD4","CD8A","TRAC","TRBC1","TRBC2","TRDC","IL7R","CCR7","SELL","CD27","TCF7","CXCR6","FOXP3","IL2RA","TNFRSF18","TNFRSF4","BATF","CTLA4","PDCD1","LAG3","TIGIT","TOX","GNLY","PRF1","GZMA","GZMB","NKG7","ICOS","MKI67","TOP2A","PMEL","MLANA","TYR","S100B","MITF","NLGN1","HMCN1","PDE10A","PECAM1","VWF","EGFL7","LUM","DCN","DST","LAMC1","WWTR1","CALD1","TAGLN","KRT8","CLDN4")
+
+cluster_order <- c("8","15","28","17","13","2_1","1_0","1_1","2_0","22_1","22_2","26_0","3_0","22_0","3_1","12_0","12_1","16_0","9_0","9_1","18_0","18_1","29","0","4","5","6","11","23","25","14","21","7","27","10","20","19","24")
+
+slice_order <- factor(cluster_classes[cluster_order,], levels = unique(cluster_classes[cluster_order,]))
+
+gene_categories <- enframe(all_genes_to_plot,name=NULL,value="Gene") %>%
+  as_tibble() %>%
+  mutate(GeneClass = case_when(
+    Gene %in% c("PTPRC") ~ "Immune",
+    Gene %in% c("CD14","APOE","ICAM1","RNASE1","S100A8","S100A9","C1QA","C1QB","C1QC","ITGAX","CD1C","FCER1A","CSF1R","CD68","CD163","FASLG","FOLR2","MS4A4A","SELENOP","MSR1","FCGR3A","IL3RA","IRF4","IRF8","CLEC4C","CD40","CD80","CD86","HLA-DRA","HLA-DRB1","HLA-DQA1","HLA-DQA2","HLA-DQB1","HLA-DQB2") ~ "Monocyte/\nMacrophage/\nDC",
+    Gene %in% c("CD79A","BANK1","MS4A1","CD19") ~ "B cell",
+    Gene %in% c("MZB1","IGHG1","XBP1") ~ "Plasma",
+    Gene %in% c("NCR1","NCAM1") ~ "NK cell",
+    Gene %in% c("CD3E","CD3G","CD4","CD8A","TRAC","TRBC1","TRBC2","TRDC","IL7R","CCR7","SELL","CD27","TCF7") ~ "T cell",
+    Gene %in% c("CXCR6","FOXP3","IL2RA","TNFRSF18","TNFRSF4","BATF","CTLA4","PDCD1","LAG3","TIGIT","TOX","NKG7","GNLY","PRF1","GZMA","GZMB","ICOS") ~ "T cell\nsubsets/\nNK cells",
+    Gene %in% c("MKI67","TOP2A") ~ "Proliferation",
+    Gene %in% c("PMEL","MLANA","TYR","S100B","MITF") ~ "Melanoma",
+   	Gene %in% c("NLGN1","HMCN1","PDE10A") ~ "Melanocyte",
+    Gene %in% c("PECAM1","VWF","EGFL7") ~ "Endothelial",
+    Gene %in% c("DCN","LUM","DST","LAMC1","WWTR1") ~ "Fibroblast",
+    Gene %in% c("TAGLN","CALD1") ~ "Pericyte/\nsmooth muscle",
+    Gene %in% c("KRT8","CLDN4") ~ "Basal"
+    )
+  )
+  
+gene_slice_order <- factor(gene_categories$GeneClass, levels = unique(gene_categories$GeneClass))
+  
+pb_all <- aggregateData(mergedCondition.sce,
+    assay = "counts",
+    fun = "mean",
+    by = "cluster_id")
+
+all_genes_to_plot <- all_genes_to_plot[all_genes_to_plot %in% rownames(assay(pb_all))]
+mat <- assay(pb_all)[all_genes_to_plot,cluster_order]
+colnames(mat) <- cluster_annot[cluster_order]
+ComplexHeatmap::Heatmap(mat,
+                        col = circlize::colorRamp2(c(0,3),hcl_palette = "viridis"),
+                        cluster_rows = FALSE,
+                        cluster_columns = FALSE,
+                        column_split = slice_order,
+                        row_split = gene_slice_order,
+                        row_title_rot = 0,
+                        cluster_column_slices = FALSE,
+                        border = TRUE,
+                        row_names_gp = gpar(fontsize=6,fontface="italic"),
+                        column_names_gp = gpar(fontsize=8),
+                        column_title_gp = gpar(fontsize=8,fontface="bold"),
+                        row_title_gp = gpar(fontsize=8,fontface="bold"),
+                        name = "Mean expression",
+                        heatmap_legend_param = list(title_position = "leftcenter-rot",border = TRUE)
+                  )
+
+
+```
+
+
+## Plot heatmap of functional genes
+
+```{r}
+#| fig-width: 6
+#| fig-height: 3.5
+functional_genes_to_plot <- c("IL1A","IL1B","LYZ","IDO1","IL6","IL8","IFNG","TNF","CXCL2","CXCL3","CXCL5","CXCL8","CXCL9","CXCL12","CCL2","CCL3","CCL4","CCL5","XCL1","XCL2")
+
+functional_genes_to_plot <- functional_genes_to_plot[functional_genes_to_plot %in% rownames(assay(pb_all))]
+fx_mat <- assay(pb_all)[functional_genes_to_plot,cluster_order]
+colnames(fx_mat) <- cluster_annot[cluster_order]
+ComplexHeatmap::Heatmap(fx_mat,
+                        col = circlize::colorRamp2(c(0,3),hcl_palette = "viridis"),
+                        cluster_rows = FALSE,
+                        cluster_columns = FALSE,
+                        column_split = slice_order,
+                        cluster_column_slices = FALSE,
+                        border = TRUE,
+                        row_names_gp = gpar(fontsize=6,fontface="italic"),
+                        column_names_gp = gpar(fontsize=8),
+                        column_title_gp = gpar(fontsize=8,fontface="bold"),
+                        name = "Mean expression",
+                        heatmap_legend_param = list(title_position = "leftcenter-rot",border = TRUE)
+                  )
+```
+
+## Plot composition of tumor - all cells - as a stacked barplot grouped by cell class
+
+```{r}
+comps <- rownames_to_column(as.data.frame(merged.18279.tumor.singlets@meta.data),var="Barcode") %>%
+	as_tibble() %>%
+	dplyr::select(Barcode,sub.cluster,Sample,CellClass) %>%
+	mutate(Sample = str_replace_all(Sample,"_.{1,3}mgIpi_RNA","")) %>%
+	group_by(CellClass,Sample) %>%
+	summarize(n = n()) %>%
+	mutate(Patient = str_split_i(Sample,pattern = "_",i = 1)) %>%
+	mutate(Site = str_split_i(Sample,pattern = "_",i = 2)) %>%
+	mutate(Timepoint = str_split_i(Sample,pattern = "_",i = 3))
+
+comps_1 <- comps %>%
+	dplyr::filter(Patient %in% c("P101","P104","P108")) %>%
+	ggplot(aes(x=Timepoint,y=n,fill=fct_relevel(CellClass,c("Melanoma","Non-immune","Mast","DC","Monocyte/\nMacrophage","B","NK/T")))) +
+	geom_col(position="fill",color="black",linewidth=0.1) +
+    theme_bw() +
+    theme(#axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size=10),
+    	axis.text.y = element_text(size=10),
+    	strip.text = element_text(size=10,face="bold"),
+    	axis.title = element_text(size=10,face="bold"),
+    	legend.text = element_text(size=10),
+    	legend.title = element_text(size=10,face="bold"),
+    	legend.key.size = unit(2,"line"),
+    	panel.grid = element_blank(), 
+      panel.grid.minor = element_blank(),
+      panel.border = element_rect(fill = NA, color = "black")
+    	) +
+	ylab("Cell fraction in tumor biopsy") +
+	facet_grid(~fct_relevel(Patient,c("P101","P104","P108")),scales="free_x",space="free_x") +
+	labs(fill="Cell class") +
+	scale_fill_manual(values = c("#5AAE61", 
+	                             "#D9F0D3", 
+	                             "#E08214", 
+	                             "#762A83", 
+	                             "gray50", 
+	                             paletteer_d("ggsci::brown_material")[3], 
+	                             "gray90")[c(6,7,5,2,1,3,4)],
+	                  limits=unique(cluster_classes$CellClass)[c(6,7,5,2,1,3,4)]
+		)
+
+comps_2 <- comps %>%
+	dplyr::filter(Patient %in% c("P103")) %>%
+	ggplot(aes(x=Timepoint,y=n,fill=fct_relevel(CellClass,c("Melanoma","Non-immune","Mast","DC","Monocyte/\nMacrophage","B","NK/T")))) +
+	geom_col(position="fill",color="black",linewidth=0.1) +
+    theme_bw() +
+    theme(#axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size=10),
+    	axis.text.y = element_blank(),
+    	axis.ticks.length.y = unit(0, "line"),
+    	strip.text = element_text(size=10,face="bold"),
+    	axis.title = element_text(size=10,face="bold"),
+    	legend.text = element_text(size=10),
+    	legend.title = element_text(size=10,face="bold"),
+    	legend.key.size = unit(2,"line"),
+    	panel.grid = element_blank(), 
+      panel.grid.minor = element_blank(),
+      panel.border = element_rect(fill = NA, color = "black")
+    	) +
+	ylab("") +
+	facet_grid(~fct_relevel(Patient,c("P103")),scales="free_x",space="free_x") +
+	labs(fill="Cell class") +
+	scale_fill_manual(values = c("#5AAE61", 
+	                             "#D9F0D3", 
+	                             "#E08214", 
+	                             "#762A83", 
+	                             "gray50", 
+	                             paletteer_d("ggsci::brown_material")[3], 
+	                             "gray90")[c(6,7,5,2,1,3,4)],
+	                  limits=unique(cluster_classes$CellClass)[c(6,7,5,2,1,3,4)]
+		)
+
+wrap_plots(comps_1, comps_2, ncol = 2, guides = "collect", widths = c(1,0.55))
+```
+
+## Plot ProjecTILs annotations in UMAP space
+
+```{r}
+#| fig-width: 10
+DimPlot(merged.18279.tumor.singlets, 
+        reduction = "umap.harmony",
+        group.by = "functional.cluster",
+        label = FALSE
+        ) +
+	scale_color_manual(breaks = levels(addNA(factor(merged.18279.tumor.singlets$functional.cluster))),
+		labels = c(levels(factor(merged.18279.tumor.singlets$functional.cluster)),"Unknown/Other"),
+		values = c(paletteer::paletteer_d("RColorBrewer::Blues")[-c(1:2)], "#232061FF", paletteer::paletteer_d("RColorBrewer::Reds")[-c(1:2)],"#CECECEFF"),
+		na.value = "#CECECEFF",
+		drop = FALSE
+		)
+```
+
+## Stacked barplot of ProjecTILs annotations of TIL compartment
+
+```{r}
+meta.df <- merged.18279.tumor.singlets@meta.data[,c("Patient","Timepoint","sub.cluster","functional.cluster", "CellClass")]
+
+a <- rownames_to_column(meta.df,var="Cell") %>%
+    as_tibble() %>%
+
+	# Restrict to T cells
+    dplyr::filter(CellClass == "NK/T") %>%
+    group_by(Patient,Timepoint) %>%
+    summarize(n = n()) %>%
+    dplyr::filter(Patient %in% c("P101","P104","P108")) %>%
+    ggplot(aes(x=Timepoint,y=n,group=Patient,fill=Patient)) +
+    geom_col(color="black",linewidth=0.1) +
+    geom_point(size=0.5) +
+    facet_grid(~Patient,scales = "free_x",space="free") +
+    ylab("Num. TILs") +
+    theme_bw() +
+    theme(axis.text.x = element_blank(),
+    	axis.ticks.x = element_blank(),
+    	axis.text.y = element_text(size=10),
+    	strip.text = element_text(size=10,face="bold"),
+    	axis.title.x = element_blank(),
+    	axis.title.y = element_text(size=10,face="bold"),
+    	legend.position = "none",
+    	panel.grid = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(fill = NA, color = "black")
+    	) +
+    	scale_fill_manual(values = rep("gray50",4))
+    	
+    
+b <- rownames_to_column(meta.df,var="Cell") %>%
+    as_tibble() %>%
+
+	# Restrict to T cells
+    dplyr::filter(CellClass == "NK/T") %>%
+    group_by(Patient,Timepoint,functional.cluster) %>%
+    summarize(n = n()) %>%
+    dplyr::filter(Patient %in% c("P101","P104","P108")) %>%
+    ggplot(aes(x=Timepoint,y=n,fill=functional.cluster)) +
+    geom_col(position="fill",color="black",linewidth=0.1) +
+    facet_grid(~Patient,scales = "free_x",space="free") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size=10),
+    	axis.text.y = element_text(size=10),
+    	strip.text = element_blank(),
+    	axis.title = element_text(size=10,face="bold"),
+    	legend.text = element_text(size=10),
+    	legend.title = element_text(size=10,face="bold"),
+    	legend.key.size = unit(1.5,"line"),
+    	panel.grid = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(fill = NA, color = "black")
+    	) +
+	ylab("Proportion of TILs") +
+	labs(fill = "Cell state") +
+	scale_fill_manual(breaks = levels(addNA(factor(meta.df$functional.cluster))),
+		labels = c(levels(factor(meta.df$functional.cluster)),"Unknown/Other"),
+		values = c(paletteer::paletteer_d("RColorBrewer::Blues")[-c(1:2)], "#232061FF", paletteer::paletteer_d("RColorBrewer::Reds")[-c(1:2)],"#CECECEFF"),
+		na.value = "#CECECEFF"
+		)
+
+
+c <- rownames_to_column(meta.df,var="Cell") %>%
+    as_tibble() %>%
+
+	# Restrict to T cells
+    dplyr::filter(CellClass == "NK/T") %>%
+    group_by(Patient,Timepoint) %>%
+    summarize(n = n()) %>%
+    dplyr::filter(Patient %in% c("P103")) %>%
+    ggplot(aes(x=Timepoint,y=n,group=Patient,fill=Patient)) +
+    geom_col(color="black",linewidth=0.1) +
+    geom_point(size=0.5) +
+    facet_grid(~Patient,scales = "free_x",space="free") +
+    ylab("") +
+    theme_bw() +
+    theme(axis.text.x = element_blank(),
+    	axis.ticks.x = element_blank(),
+    	axis.ticks.length.y = unit(0, "line"),
+    	axis.text.y = element_blank(),
+    	strip.text = element_text(size=10,face="bold"),
+    	axis.title.x = element_blank(),
+    	axis.title.y = element_text(size=10,face="bold"),
+    	legend.position = "none",
+    	panel.grid = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(fill = NA, color = "black")
+    	) +
+    	scale_fill_manual(values = rep("gray50",4))
+    	
+    
+d <- rownames_to_column(meta.df,var="Cell") %>%
+    as_tibble() %>%
+
+	# Restrict to T cells
+    dplyr::filter(CellClass == "NK/T") %>%
+    group_by(Patient,Timepoint,functional.cluster) %>%
+    summarize(n = n()) %>%
+    dplyr::filter(Patient %in% c("P103")) %>%
+    ggplot(aes(x=Timepoint,y=n,fill=functional.cluster)) +
+    geom_col(position="fill",show.legend = TRUE,color="black",linewidth=0.1) +
+    facet_grid(~Patient,scales = "free_x",space="free") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size=10),
+    	axis.text.y = element_blank(),
+    	axis.ticks.length.y = unit(0, "line"),
+    	strip.text = element_blank(),
+    	axis.title = element_text(size=10,face="bold"),
+    	legend.text = element_text(size=10),
+    	legend.title = element_text(size=10,face="bold"),
+    	legend.key.size = unit(1.5,"line"),
+    	panel.grid = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(fill = NA, color = "black")
+    	) +
+	ylab("") +
+#	labs(fill = "Cell state") +
+	guides(fill = "none") +
+	scale_fill_manual(breaks = levels(addNA(factor(meta.df$functional.cluster))),
+		labels = c(levels(factor(meta.df$functional.cluster)),"Unknown/Other"),
+		values = c(paletteer::paletteer_d("RColorBrewer::Blues")[-c(1:2)], "#232061FF", paletteer::paletteer_d("RColorBrewer::Reds")[-c(1:2)],"#CECECEFF"),
+		na.value = "#CECECEFF",
+		drop = FALSE
+		)
+
+wrap_plots(a, c, b, d) + plot_layout(heights=c(0.1, 0.9), widths = c(1, 0.5), guides = "collect")
+```
+
+## Plot cell proportions of all clusters
+
+```{r}
+#| fig-width: 15
+#| fig-height: 10
+totalsPerSample <- enframe(table(merged.18279.tumor.singlets$Sample),name="Sample",value="TotalCells") %>%
+    as_tibble() %>%
+    mutate(TotalCells = as.numeric(TotalCells)) %>%
+    mutate(Sample = str_replace_all(Sample,"_.{1,3}mgIpi_RNA",""))
+
+rownames_to_column(as.data.frame(merged.18279.tumor.singlets@meta.data),var="Barcode") %>%
+    as_tibble() %>%
+    dplyr::select(Barcode,sub.cluster,Sample,CellAnnotation) %>%
+    mutate(Sample = str_replace_all(Sample,"_.{1,3}mgIpi_RNA","")) %>%
+    group_by(CellAnnotation,Sample) %>%
+    summarize(n = dplyr::n()) %>%
+    ungroup() %>%
+    complete(Sample,CellAnnotation) %>%             # Makes sure 0s get represented rather than omitted
+    mutate(n = replace_na(n,0)) %>%
+    mutate(Patient = str_split_i(Sample,pattern = "_",i = 1)) %>%
+    mutate(Site = str_split_i(Sample,pattern = "_",i = 2)) %>%
+    mutate(Timepoint = str_split_i(Sample,pattern = "_",i = 3)) %>%
+    right_join(totalsPerSample,.,by="Sample") %>%
+      group_by(Sample) %>%
+      mutate(Proportion = n / TotalCells) %>%
+    mutate(CellAnnotation = factor(CellAnnotation, levels = cluster_annot[cluster_order])) %>%
+    ggplot(aes(x = fct_relevel(Timepoint,c("W00","W12","W20","PD")),
+               y = Proportion,
+               color = Patient
+               )
+           ) +
+      #geom_boxplot(outlier.shape=NA, width = 0.5) +
+      lemon::geom_pointpath(aes(group=Patient), 
+                            position = position_jitterdodge(jitter.width = 0.1,
+                                                            dodge.width = 0.4,
+                                                            seed=123)
+                            ) +
+      facet_wrap(~CellAnnotation,scales="free_y",ncol=6) +
+    theme_bw() +
+    theme(axis.text.y = element_text(size=10),
+        strip.text = element_text(size=8,face="bold"),
+        axis.title = element_text(size=10,face="bold"),
+        legend.text = element_text(size=10),
+        legend.title = element_text(size=10,face="bold"),
+        legend.key.size = unit(2,"line"),
+        panel.grid = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(fill = NA, color = "black")
+        ) +
+      xlab("Timepoint") +
+      ylab("Tumor composition fraction") +
+    labs(fill = "Timepoint") +
+  scale_color_manual(values = c("#59A14FFF","#B07AA1FF","#76B7B2FF", "#F6AAC9FF"))
+```
+
+
+## Plot MHC class I and II as well as antigen processing pathway expression among melanoma cells
+
+```{r}
+merged.18279.tumor.singlets.mel <- subset(merged.18279.tumor.singlets,subset = CellClass == "Melanoma")
+
+class2 <- rownames(merged.18279.tumor.singlets)[str_detect(rownames(merged.18279.tumor.singlets),"HLA-D")]
+class1 <- rownames(merged.18279.tumor.singlets)[str_detect(rownames(merged.18279.tumor.singlets),"HLA-[ABC]")]
+
+## Retrieve MSigDB C2 from MSigDB and filter for KEGG antigen processing/presentation genes
+c2 <- msigdbr::msigdbr(species="Homo sapiens",category = "C2")
+
+antigenProc <- c2 %>% 
+	dplyr::filter(gs_name == "KEGG_ANTIGEN_PROCESSING_AND_PRESENTATION") %>%
+  dplyr::filter(!str_detect(human_gene_symbol,"^HLA-[ABCD]")) %>%
+	pull(human_gene_symbol) %>% 
+	unique()
+
+## Compute module scores for these gene sets
+merged.18279.tumor.singlets.mel <- AddModuleScore(merged.18279.tumor.singlets.mel, features = list(class1), name = "MHCclassI")
+merged.18279.tumor.singlets.mel <- AddModuleScore(merged.18279.tumor.singlets.mel, features = list(class2), name = "MHCclassII")
+merged.18279.tumor.singlets.mel <- AddModuleScore(merged.18279.tumor.singlets.mel, features = list(antigenProc), name = "AntigenProcessing")
+
+rownames_to_column(merged.18279.tumor.singlets.mel@meta.data,var="Barcode") %>%
+    as_tibble() %>%
+    dplyr::select(Barcode,Patient,Site,Timepoint,MHCclassI1,MHCclassII1,AntigenProcessing1) %>%
+    pivot_longer(cols = c("MHCclassI1","MHCclassII1","AntigenProcessing1"), names_to = "Signature", values_to="Expression") %>%
+    mutate(Signature = str_replace_all(Signature,"1$","")) %>%
+    ggplot(aes(x = fct_relevel(Timepoint,c("W00","W12","W20","PD")), y = Expression, fill = Patient)) +
+    geom_violin() +
+    #geom_point(position = position_jitter(width = 0.1),size=0.2,alpha=0.25) +
+	facet_grid(Signature~Patient,scales="free_x",space="free_x") +
+    xlab("Timepoint") +
+    ylab("Expression in individual melanoma cells") +
+  theme_bw() +
+  scale_fill_manual(values=c("#59A14FFF","#B07AA1FF","#76B7B2FF", "#F6AAC9FF"))
+
+```
+
+
+## Compute CD8 / CD4Treg ratio over time, using ProjecTILs annotations of CD4Treg and CD8
+
+```{r}
+ratio1 <- as.data.frame(table(merged.18279.tumor.singlets$functional.cluster, merged.18279.tumor.singlets$Sample)) %>% 
+  as_tibble() %>%
+  dplyr::rename("Sample" = Var2,"Cluster" = Var1) %>%
+  separate(Sample, into=c("Patient","Site","Timepoint","IpiCohort","Assay"),sep="_",remove=F) %>%
+  dplyr::filter(Timepoint=="W00" | Timepoint=="W12" | Timepoint=="W20") %>%
+  group_by(Sample) %>%
+  mutate(Proportion = Freq / sum(Freq)) %>%
+  mutate(Ttype = case_when(
+  	str_detect(Cluster,"CD8") ~ "CD8",
+  	str_detect(Cluster,"Treg") ~ "Treg",
+  	T ~ "else"  	
+  	)
+  ) %>%
+  dplyr::filter(Ttype != "else") %>%
+  group_by(Sample, Ttype) %>%
+  summarize(SumProp = sum(Proportion)) %>%
+  separate(Sample, into=c("Patient","Site","Timepoint","IpiCohort","Assay"),sep="_",remove=F) %>%
+  pivot_wider(names_from=Ttype, values_from=SumProp) %>%
+  rowwise() %>%
+  mutate(CD8treg_ratio = log2(CD8/Treg)) %>%
+  ggplot(aes(x = Timepoint, y=CD8treg_ratio)) +
+  geom_hline(yintercept=0,linetype=3,color="gray50",alpha=0.5) +
+  lemon::geom_pointpath(aes(group=Patient,color=Patient)) +
+  ylab("log2 CD8/CD4Treg proportion ratio") +
+  theme_classic() +
+  theme(plot.margin = margin(0, 0, 0, 0, "pt")) +
+  ylim(0,6) +
+  scale_color_manual(values = c("#59A14FFF","#B07AA1FF"))
+  
+ratio2 <- as.data.frame(table(merged.18279.tumor.singlets$functional.cluster, merged.18279.tumor.singlets$Sample)) %>% 
+  as_tibble() %>%
+  dplyr::rename("Sample" = Var2,"Cluster" = Var1) %>%
+  separate(Sample, into=c("Patient","Site","Timepoint","IpiCohort","Assay"),sep="_",remove=F) %>%
+  dplyr::filter(Timepoint=="PD") %>%
+  group_by(Sample) %>%
+  mutate(Proportion = Freq / sum(Freq)) %>%
+  mutate(Ttype = case_when(
+  	str_detect(Cluster,"CD8") ~ "CD8",
+  	str_detect(Cluster,"Treg") ~ "Treg",
+  	T ~ "else"  	
+  	)
+  ) %>%
+  dplyr::filter(Ttype != "else") %>%
+  group_by(Sample, Ttype) %>%
+  summarize(SumProp = sum(Proportion)) %>%
+  separate(Sample, into=c("Patient","Site","Timepoint","IpiCohort","Assay"),sep="_",remove=F) %>%
+  pivot_wider(names_from=Ttype, values_from=SumProp) %>%
+  rowwise() %>%
+  mutate(CD8treg_ratio = log2(CD8/Treg)) %>%
+  ggplot(aes(x = Timepoint, y=CD8treg_ratio,color=Patient)) +
+  geom_hline(yintercept=0,linetype=3,color="gray50",alpha=0.5) +
+  geom_point() +
+  xlab("") +
+  ylab("") +
+  theme_classic() +
+  theme(plot.margin = margin(0, 0, 0, 0, "pt"),
+        legend.title=element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank()) +
+  ylim(0,6) +
+  scale_color_manual(values = c("#76B7B2FF", "#F6AAC9FF"))
+  
+ratio1 + ratio2 + plot_layout(widths = c(2, 1), guides = "collect") & 
+  theme(legend.position = "bottom")
+
+```
+
+## Plot TLS signatures among Plasma/Bcell clusters
+Drop P104 because there are no Plasma/B cells observed
+
+```{r}
+props <- rownames_to_column(as.data.frame(merged.18279.tumor.singlets@meta.data),var="Barcode") %>%
+    as_tibble() %>%
+    dplyr::select(Barcode,sub.cluster,Sample,CellClass) %>%
+    mutate(Sample = str_replace_all(Sample,"_.{1,3}mgIpi_RNA","")) %>%
+    group_by(sub.cluster,Sample) %>%
+    summarize(n = dplyr::n()) %>%
+    ungroup() %>%
+    complete(Sample,sub.cluster) %>%            # Makes sure 0s get represented rather than omitted
+    mutate(n = replace_na(n,0)) %>%
+    mutate(Patient = str_split_i(Sample,pattern = "_",i = 1)) %>%
+    mutate(Site = str_split_i(Sample,pattern = "_",i = 2)) %>%
+    mutate(Timepoint = str_split_i(Sample,pattern = "_",i = 3)) %>%
+    right_join(totalsPerSample,.,by="Sample") %>%
+    mutate(Sample = str_replace_all(Sample,"_Tumor","")) %>%
+    group_by(Sample) %>%
+    mutate(Proportion = n / TotalCells)
+
+
+props %>%
+    dplyr::filter(sub.cluster %in% rownames(cluster_classes)[which(cluster_classes$CellClass=="B")]) %>%
+    dplyr::select(Sample, Proportion, sub.cluster) %>%
+    pivot_wider(names_from=sub.cluster,values_from=Proportion)
+
+
+# Pseudobulk by cluster and sample
+pb <- aggregateData(mergedCondition.sce,
+    assay = "counts",
+    fun = "mean",
+    by = c("cluster_id", "sample_id"))
+
+
+# Subset to genes and clusters of interest and reorder columns
+cluster <- "13"
+
+# Genes defined by four TLS signatures, Cabrita_TLS, Cabrita_Hallmark_TLS, Meylan_TLS, Xu_TLS
+goi <- unique(c("CD79B","CCL19","IGHA1","CCL2","CD1D","CCL21","IGHG1","CCL3","CCR6","CXCL13","IGHG2","CCL4","LAT","CCR7","IGHG3","CCL5","SKAP1","CXCR5","IGHG4","CCL8","CETP","SELL","IGHGP","CCL18","EIF1AY","LAMP3","IGHM","CCL19","RBP5","IGKC","CCL21","PTGDS","IGLC1","CXCL9","IGLC2","CXCL10","IGLC3","CXCL11","JCHAIN","CXCL13","CD79A","FCRL5","MZB1","SSR4","XBP1","TRBC2","IL7R","CXCL12","LUM","C1QA","C7","CD52","APOE","PTLP","PTGDS","PIM2","DERL3"))
+
+goi_filt <- goi[goi %in% rownames(assays(pb)[[cluster]])]
+pb_cluster <- assays(pb)[[cluster]][goi_filt,]
+pb_cluster_cnames <- str_replace_all(str_replace_all(colnames(pb_cluster),"_.{1,3}mgIpi_RNA",""),"_Tumor","")
+colnames(pb_cluster) <- pb_cluster_cnames
+pb_cluster_cnames_sorted <- pb_cluster_cnames[c(which(grepl("P101",pb_cluster_cnames)),which(grepl("P104",pb_cluster_cnames)),which(grepl("P108",pb_cluster_cnames)),which(grepl("P103",pb_cluster_cnames)))]
+
+# Subset proportions table
+cluster_props <- props %>%
+  dplyr::filter(sub.cluster == cluster) %>%
+  dplyr::select(Sample,Proportion) %>%
+  ungroup() %>%
+  mutate(Sample = fct_relevel(as.factor(Sample),pb_cluster_cnames_sorted)) %>%
+  dplyr::arrange(Sample) %>%
+  as.data.frame()
+
+# Plot heatmap
+patients <- factor(str_split_i(pb_cluster_cnames_sorted,"_",1),levels=c("P101","P104","P108","P103"))
+patients <- droplevels(patients[patients!="P104"])
+cluster_props <- cluster_props[!str_detect(cluster_props$Sample,"P104"),]
+pb_cluster_cnames_sorted <- pb_cluster_cnames_sorted[!str_detect(pb_cluster_cnames_sorted,"P104")]
+
+ha1 <- HeatmapAnnotation(Patient = patients,
+                         show_legend = FALSE,
+                         col = list(Patient = setNames(c("#59A14FFF","#F6AAC9FF","#B07AA1FF"), c("P101", "P108", "P103"))), 
+                         border = TRUE)
+ha2 <- HeatmapAnnotation(Proportion = anno_barplot(cluster_props$Proportion, 
+                                                   gp = gpar(fill = c(
+                                                      rep("#59A14FFF",length(which(str_detect(cluster_props$Sample,"P101")))),
+                                                       rep("#F6AAC9FF",length(which(str_detect(cluster_props$Sample,"P108")))),
+                                                      rep("#B07AA1FF",length(which(str_detect(cluster_props$Sample,"P103"))))
+                                                      )
+                                                     )
+                                                   )
+                         )
+
+p13 <- ComplexHeatmap::Heatmap(pb_cluster[,pb_cluster_cnames_sorted],
+                        cluster_rows = TRUE,
+                        cluster_columns = FALSE,
+                        column_split = factor(patients,levels = c("P101","P108","P103")),
+                        column_labels = str_replace_all(pb_cluster_cnames_sorted,"P.+_",""),
+                        row_names_gp = gpar(fontface = "italic",fontsize = 8),
+                        column_names_gp = gpar(fontsize = 8),
+                        col = colorRamp2(c(0,5),hcl_palette = "viridis"),
+                        border = TRUE,
+                        column_title = cluster_annot[cluster],
+                        column_title_gp = gpar(fontface = "bold"),
+                        name = "Expression",
+                        top_annotation = c(ha1,ha2),
+                        show_heatmap_legend = FALSE
+) %>% 
+  draw() %>% 
+  grid.grabExpr()
+  
+  
+
+
+# Repeat for cluster 17
+cluster <- "17"
+
+# Genes defined by four TLS signatures, Cabrita_TLS, Cabrita_Hallmark_TLS, Meylan_TLS, Xu_TLS
+goi_filt <- goi[goi %in% rownames(assays(pb)[[cluster]])]
+pb_cluster <- assays(pb)[[cluster]][goi_filt,]
+pb_cluster_cnames <- str_replace_all(str_replace_all(colnames(pb_cluster),"_.{1,3}mgIpi_RNA",""),"_Tumor","")
+colnames(pb_cluster) <- pb_cluster_cnames
+pb_cluster_cnames_sorted <- pb_cluster_cnames[c(which(grepl("P101",pb_cluster_cnames)),which(grepl("P104",pb_cluster_cnames)),which(grepl("P108",pb_cluster_cnames)),which(grepl("P103",pb_cluster_cnames)))]
+
+# Subset proportions table
+cluster_props <- props %>%
+  dplyr::filter(sub.cluster == cluster) %>%
+  dplyr::select(Sample,Proportion) %>%
+  ungroup() %>%
+  mutate(Sample = fct_relevel(as.factor(Sample),pb_cluster_cnames_sorted)) %>%
+  dplyr::arrange(Sample) %>%
+  as.data.frame()
+
+# Plot heatmap
+patients <- factor(str_split_i(pb_cluster_cnames_sorted,"_",1),levels=c("P101","P104","P108","P103"))
+patients <- droplevels(patients[patients!="P104"])
+cluster_props <- cluster_props[!str_detect(cluster_props$Sample,"P104"),]
+pb_cluster_cnames_sorted <- pb_cluster_cnames_sorted[!str_detect(pb_cluster_cnames_sorted,"P104")]
+
+ha1 <- HeatmapAnnotation(Patient = patients,
+                         show_legend = FALSE,
+                         col = list(Patient = setNames(c("#59A14FFF","#F6AAC9FF","#B07AA1FF"), c("P101", "P108", "P103"))), 
+                         border = TRUE)
+ha2 <- HeatmapAnnotation(Proportion = anno_barplot(cluster_props$Proportion, 
+                                                   gp = gpar(fill = c(
+                                                      rep("#59A14FFF",length(which(str_detect(cluster_props$Sample,"P101")))),
+                                                      rep("#F6AAC9FF",length(which(str_detect(cluster_props$Sample,"P108")))),
+                                                      rep("#B07AA1FF",length(which(str_detect(cluster_props$Sample,"P103"))))
+                                                      )
+                                                     )
+                                                   )
+                         )
+
+p17 <- ComplexHeatmap::Heatmap(pb_cluster[,pb_cluster_cnames_sorted],
+                        cluster_rows = TRUE,
+                        cluster_columns = FALSE,
+                        column_split = factor(patients,levels = c("P101","P108","P103")),
+                        column_labels = str_replace_all(pb_cluster_cnames_sorted,"P.+_",""),
+                        row_names_gp = gpar(fontface = "italic",fontsize = 8),
+                        column_names_gp = gpar(fontsize = 8),
+                        col = colorRamp2(c(0,5),hcl_palette = "viridis"),
+                        border = TRUE,
+                        column_title = cluster_annot[cluster],
+                        column_title_gp = gpar(fontface = "bold"),
+                        name = "Expression",
+                        top_annotation = c(ha1,ha2),
+                        show_heatmap_legend = FALSE
+) %>% 
+  draw() %>% 
+  grid.grabExpr()
+  
+
+wrap_plots(p13, p17)
+
+```
+
+## Plot TLS module scores as violin
+
+```{r}
+merged.18279.tumor.singlets <- AddModuleScore(merged.18279.tumor.singlets, features = list(goi), name = "TLS_combined")
+rownames_to_column(as.data.frame(merged.18279.tumor.singlets@meta.data),var="Barcode") %>%
+    as_tibble() %>%
+    dplyr::select(Barcode,sub.cluster,Sample,CellClass,contains("TLS_")) %>%
+    pivot_longer(cols = contains("TLS_"), names_to="TLS_signature", values_to="ModuleScore") %>%
+    mutate(Sample = str_replace_all(Sample,"_.{1,3}mgIpi_RNA","")) %>%
+    dplyr::filter(CellClass == "B") %>%
+    mutate(Patient = str_split_i(Sample,pattern = "_",i = 1)) %>%
+    mutate(Site = str_split_i(Sample,pattern = "_",i = 2)) %>%
+    mutate(Timepoint = str_split_i(Sample,pattern = "_",i = 3)) %>%
+	ggplot(aes(x = Timepoint, y = ModuleScore, fill = Patient)) +
+	geom_violin() +
+	facet_grid(TLS_signature ~ fct_relevel(Patient,c("P101","P108","P103")),scales="free_x",space="free") +
+  theme_bw() +
+  ylab("TLS score in individual B/Plasma cells") +
+  scale_fill_manual(values = c("#59A14FFF","#F6AAC9FF","#B07AA1FF"))
+
+
+```
+
+
+## Get session info
+
+```{r}
+sessionInfo()
+```

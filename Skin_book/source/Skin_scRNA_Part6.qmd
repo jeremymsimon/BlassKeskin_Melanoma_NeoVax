@@ -1,0 +1,324 @@
+# Skin: Sub-clustering on T/NK lineage {#sec-skin-tnk-subclustering}
+
+## Set up Seurat workspace
+
+```{r }
+#| warning: false
+#| error: false
+
+# Load libraries
+library(data.table)
+library(devtools)
+library(presto)
+library(glmGamPoi)
+library(sctransform) 
+library(Seurat)
+library(tidyverse)
+library(miQC)  
+library(SeuratWrappers)
+library(flexmix)
+library(SingleCellExperiment)
+library(SummarizedExperiment)
+library(readxl)
+library(fishpond)
+library(Matrix)
+library(speckle)
+library(scater)
+library(patchwork)
+library(vctrs)
+library(alevinQC)
+library(harmony)
+library(scDblFinder)
+library(cellXY)
+
+# Set global options for Seurat v5 objects
+options(Seurat.object.assay.version = 'v5')
+```
+
+## Load previously saved object
+
+```{r}
+merged.18279.skin.singlets <- readRDS("Skin_scRNA_Part3.rds")
+```
+
+## Set idents to preferred initial clustering resolution
+
+```{r}
+Idents(merged.18279.skin.singlets) <- merged.18279.skin.singlets$RNA_snn_res.0.8
+merged.18279.skin.singlets$seurat_clusters <- merged.18279.skin.singlets$RNA_snn_res.0.8
+DimPlot(merged.18279.skin.singlets, reduction="umap.harmony", label=T)
+```
+
+## Run sub-clustering on T/NK lineage
+T/NK cells are in clusters 1, 2, 4, 5, 6, 9, 11, 13, 19
+
+### Cluster 1
+
+```{r}
+merged.18279.skin.singlets <- FindSubCluster(object = merged.18279.skin.singlets, 
+										cluster = "1",
+										resolution = 0.2,
+										graph.name = "RNA_snn",  
+										algorithm = 2)
+
+DimPlot(merged.18279.skin.singlets,  
+        reduction = "umap.harmony",  
+        group.by = "sub.cluster", 
+        label = TRUE)
+
+table(merged.18279.skin.singlets$sub.cluster)
+Idents(merged.18279.skin.singlets) <- "sub.cluster"
+levels(merged.18279.skin.singlets)
+```
+
+### Cluster 2
+
+```{r}
+merged.18279.skin.singlets <- FindSubCluster(object = merged.18279.skin.singlets, 
+										cluster = "2",
+										resolution = 0.2,
+										graph.name = "RNA_snn",  
+										algorithm = 2)
+
+DimPlot(merged.18279.skin.singlets,  
+        reduction = "umap.harmony",  
+        group.by = "sub.cluster", 
+        label = TRUE)
+
+table(merged.18279.skin.singlets$sub.cluster)
+Idents(merged.18279.skin.singlets) <- "sub.cluster"
+levels(merged.18279.skin.singlets)
+```
+
+### Cluster 4
+
+```{r}
+merged.18279.skin.singlets <- FindSubCluster(object = merged.18279.skin.singlets, 
+										cluster = "4",
+										resolution = 0.2,
+										graph.name = "RNA_snn",  
+										algorithm = 2)
+
+DimPlot(merged.18279.skin.singlets,  
+        reduction = "umap.harmony",  
+        group.by = "sub.cluster", 
+        label = TRUE)
+
+table(merged.18279.skin.singlets$sub.cluster)
+Idents(merged.18279.skin.singlets) <- "sub.cluster"
+levels(merged.18279.skin.singlets)
+```
+
+### Cluster 5
+
+```{r}
+merged.18279.skin.singlets <- FindSubCluster(object = merged.18279.skin.singlets, 
+										cluster = "5",
+										resolution = 0.2,
+										graph.name = "RNA_snn",  
+										algorithm = 2)
+
+DimPlot(merged.18279.skin.singlets,  
+        reduction = "umap.harmony",  
+        group.by = "sub.cluster", 
+        label = TRUE)
+
+table(merged.18279.skin.singlets$sub.cluster)
+Idents(merged.18279.skin.singlets) <- "sub.cluster"
+levels(merged.18279.skin.singlets)
+```
+
+### Cluster 6
+
+```{r}
+merged.18279.skin.singlets <- FindSubCluster(object = merged.18279.skin.singlets, 
+										cluster = "6",
+										resolution = 0.2,
+										graph.name = "RNA_snn",  
+										algorithm = 2)
+
+DimPlot(merged.18279.skin.singlets,  
+        reduction = "umap.harmony",  
+        group.by = "sub.cluster", 
+        label = TRUE)
+
+table(merged.18279.skin.singlets$sub.cluster)
+Idents(merged.18279.skin.singlets) <- "sub.cluster"
+levels(merged.18279.skin.singlets)
+```
+
+### Cluster 9
+
+```{r}
+merged.18279.skin.singlets <- FindSubCluster(object = merged.18279.skin.singlets, 
+										cluster = "9",
+										resolution = 0.2,
+										graph.name = "RNA_snn",  
+										algorithm = 2)
+
+DimPlot(merged.18279.skin.singlets,  
+        reduction = "umap.harmony",  
+        group.by = "sub.cluster", 
+        label = TRUE)
+
+table(merged.18279.skin.singlets$sub.cluster)
+Idents(merged.18279.skin.singlets) <- "sub.cluster"
+levels(merged.18279.skin.singlets)
+```
+
+### Cluster 11
+
+```{r}
+merged.18279.skin.singlets <- FindSubCluster(object = merged.18279.skin.singlets,
+                                                                                cluster = "11",
+                                                                                resolution = 0.2,
+                                                                                graph.name = "RNA_snn",
+                                                                                algorithm = 2)
+
+DimPlot(merged.18279.skin.singlets,
+        reduction = "umap.harmony",
+        group.by = "sub.cluster",
+        label = TRUE)
+
+table(merged.18279.skin.singlets$sub.cluster)
+Idents(merged.18279.skin.singlets) <- "sub.cluster"
+levels(merged.18279.skin.singlets)
+```
+
+### Cluster 13
+
+```{r}
+merged.18279.skin.singlets <- FindSubCluster(object = merged.18279.skin.singlets,
+                                                                                cluster = "13",
+                                                                                resolution = 0.2,
+                                                                                graph.name = "RNA_snn",
+                                                                                algorithm = 2)
+
+DimPlot(merged.18279.skin.singlets,
+        reduction = "umap.harmony",
+        group.by = "sub.cluster",
+        label = TRUE)
+
+table(merged.18279.skin.singlets$sub.cluster)
+Idents(merged.18279.skin.singlets) <- "sub.cluster"
+levels(merged.18279.skin.singlets)
+```
+
+### Cluster 19
+
+```{r}
+merged.18279.skin.singlets <- FindSubCluster(object = merged.18279.skin.singlets,
+                                                                                cluster = "19",
+                                                                                resolution = 0.2,
+                                                                                graph.name = "RNA_snn",
+                                                                                algorithm = 2)
+
+DimPlot(merged.18279.skin.singlets,
+        reduction = "umap.harmony",
+        group.by = "sub.cluster",
+        label = TRUE)
+
+table(merged.18279.skin.singlets$sub.cluster)
+Idents(merged.18279.skin.singlets) <- "sub.cluster"
+levels(merged.18279.skin.singlets)
+```
+
+## Plot updated QC metrics per cluster/sub-cluster
+
+```{r}
+#| fig-width: 15
+VlnPlot(merged.18279.skin.singlets, features = "nCount_RNA", group.by="sub.cluster", pt.size=0) + NoLegend()
+VlnPlot(merged.18279.skin.singlets, features = "nFeature_RNA", group.by="sub.cluster", pt.size=0) + NoLegend()
+VlnPlot(merged.18279.skin.singlets, features = "percent.mt", group.by="sub.cluster", pt.size=0) + NoLegend()
+```
+
+## Identify updated cursory marker genes per cluster/sub-cluster
+
+```{r}
+DefaultAssay(merged.18279.skin.singlets) <- "RNA"
+
+vargenes <- presto::wilcoxauc(merged.18279.skin.singlets, 'sub.cluster', seurat_assay = 'RNA')
+top_vargenes <- top_markers(vargenes, n = 100, auc_min = 0.5, pct_in_min = 50, pct_out_max = 50)
+top_vargenes
+
+write_tsv(top_vargenes,"Skin_scRNA_prestoMarkers.tsv")
+
+```
+
+## Plot top markers identified and canonical genes as a dotplot
+
+```{r}
+#| fig-width: 35
+#| fig-height: 10
+tumor <- c("DCT","MLANA","MITF","PMEL","S100A1","TYR","APOC1")
+endothelial <- c("PECAM1","VWF")
+fibroblast <- c("COL3A1","COL1A1","COL1A2","LUM")
+tcell <- c("FGFBP2","KLRD1","CD3E","CD3D","GZMB","XCL2","GZMH","CST7","GZMK","GZMA","IFNG","GNLY","CCL4","NKG7","CCL5","CD8A","CD8B","CTLA4","TNFRSF4","BATF","ITM2A")
+mono <- c("LYZ","CD74","CD68")
+bcell <- c("MS4A1","CD79A")
+
+top_vargenes <- top_markers(vargenes, n = 5, auc_min = 0.5, pct_in_min = 50, pct_out_max = 50)
+top_markers <- top_vargenes %>%
+    select(-rank) %>% 
+    unclass() %>% 
+    stack() %>%
+    pull(values) %>%
+    unique() %>%
+    .[!is.na(.)]
+
+dotplotmarkers <- unique(c(top_markers,tumor,endothelial,fibroblast,tcell,mono,bcell))
+
+# Compute aggregated expression values of these genes and cluster them to order the figure
+rna <- AverageExpression(merged.18279.skin.singlets,assay="RNA",slot="data")
+rna.sub <- rna$RNA[dotplotmarkers,]
+cors.genes <- as.dist(1-cor(as.matrix(t(rna.sub)),method="pearson"))
+hc.genes <- hclust(cors.genes)
+dotplotmarkers.sorted <- rownames(rna.sub)[hc.genes$order]
+
+# Also re-order the sub-clusters
+cors.subs <- as.dist(1-cor(as.matrix(rna.sub),method="pearson"))
+hc.subs <- hclust(cors.subs)
+merged.18279.skin.singlets@active.ident <- factor(merged.18279.skin.singlets@active.ident, 
+                            levels=str_replace_all(str_replace_all(colnames(rna.sub)[hc.subs$order],"g",""),"-","_"))
+
+# Plot
+DotPlot(merged.18279.skin.singlets,
+	features = dotplotmarkers.sorted,
+	assay = "RNA",
+	cols = c("blue","red")
+	) + 
+	RotatedAxis()
+
+```
+
+## Plot updated skin sample proportions, pre vs post 3rd vaccine, per cluster
+
+```{r}
+#| fig-width: 10
+#| fig-height: 8
+as.data.frame(table(merged.18279.skin.singlets$sub.cluster, merged.18279.skin.singlets$Sample)) %>% 
+  as_tibble() %>%
+  dplyr::rename("Sample" = Var2,"Cluster" = Var1) %>%
+  separate(Sample, into=c("Patient","Site","Timepoint","IpiCohort","Assay"),sep="_",remove=F) %>%
+  dplyr::filter(Timepoint=="Pre3rd" | Timepoint=="Post3rd") %>%
+  group_by(Sample) %>%
+  mutate(Proportion = Freq / sum(Freq)) %>%
+  ggplot(aes(fill = Timepoint, x = fct_relevel(Timepoint,c("Pre3rd","Post3rd")), y=Proportion)) +
+  geom_boxplot(outlier.shape=NA) +
+  geom_point(pch = 21, position = position_jitterdodge(jitter.width=0.2)) +
+  facet_wrap(~Cluster,scales="free") +
+  xlab("Timepoint") +
+  scale_fill_discrete(breaks=c("Pre3rd","Post3rd"))
+```
+
+## Save updated object
+
+```{r}
+saveRDS(merged.18279.skin.singlets, "Skin_scRNA_Part6.rds")
+```
+
+## Get session info
+
+```{r}
+sessionInfo()
+```

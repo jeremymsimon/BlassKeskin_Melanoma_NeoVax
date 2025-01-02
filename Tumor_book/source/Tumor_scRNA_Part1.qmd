@@ -1,0 +1,182 @@
+# Tumor: QC & Filtering {#sec-tumor-qc-filtering}
+
+## Set up Seurat workspace
+
+```{r }
+#| warning: false
+#| error: false
+
+# Load libraries
+library(data.table)
+library(devtools)
+library(presto)
+library(glmGamPoi)
+library(sctransform)
+library(Seurat)
+library(tidyverse)
+library(miQC)	
+library(SeuratWrappers)	
+library(flexmix)
+library(SingleCellExperiment)
+library(SummarizedExperiment)
+library(readxl)
+library(fishpond)
+library(Matrix)
+library(speckle)
+library(scater)
+library(patchwork)
+library(vctrs)
+library(alevinQC)
+library(harmony)
+library(scDblFinder)
+library(cellXY)
+
+# Set global options for Seurat v5 objects
+options(Seurat.object.assay.version = 'v5')
+```
+
+## Load alevin-fry output
+Note using `U+S+A` counts via `snRNA`
+
+```{r}
+#| cache: true
+P101_Tumor_W00_2.5mgIpi_RNA <- loadFry(fryDir = "/jsimonlab/projects/Wu/Melanoma_scRNA_Eryn/alevinfry_072023/P101_Tumor_W00_2.5mgIpi_RNA_alevin_quant_crlikeem/", outputFormat = "snRNA")
+P101_Tumor_W12_2.5mgIpi_RNA <- loadFry(fryDir = "/jsimonlab/projects/Wu/Melanoma_scRNA_Eryn/alevinfry_072023/P101_Tumor_W12_2.5mgIpi_RNA_alevin_quant_crlikeem/", outputFormat = "snRNA")
+P101_Tumor_W20_2.5mgIpi_RNA <- loadFry(fryDir = "/jsimonlab/projects/Wu/Melanoma_scRNA_Eryn/alevinfry_072023/P101_Tumor_W20_2.5mgIpi_RNA_alevin_quant_crlikeem/", outputFormat = "snRNA")
+P103_Tumor_W00_2.5mgIpi_RNA <- loadFry(fryDir = "/jsimonlab/projects/Wu/Melanoma_scRNA_Eryn/alevinfry_072023/P103_Tumor_W00_2.5mgIpi_RNA_alevin_quant_crlikeem/", outputFormat = "snRNA")
+P103_Tumor_W12_2.5mgIpi_RNA <- loadFry(fryDir = "/jsimonlab/projects/Wu/Melanoma_scRNA_Eryn/alevinfry_072023/P103_Tumor_W12_2.5mgIpi_RNA_alevin_quant_crlikeem/", outputFormat = "snRNA")
+P103_Tumor_W20_2.5mgIpi_RNA <- loadFry(fryDir = "/jsimonlab/projects/Wu/Melanoma_scRNA_Eryn/alevinfry_072023/P103_Tumor_W20_2.5mgIpi_RNA_alevin_quant_crlikeem/", outputFormat = "snRNA")
+P104_Tumor_PD_2.5mgIpi_RNA <- loadFry(fryDir = "/jsimonlab/projects/Wu/Melanoma_scRNA_Eryn/alevinfry_072023/P104_Tumor_PD_2.5mgIpi_RNA_alevin_quant_crlikeem/", outputFormat = "snRNA")
+P108_Tumor_PD_5mgIpi_RNA <- loadFry(fryDir = "/jsimonlab/projects/Wu/Melanoma_scRNA_Eryn/alevinfry_072023/P108_Tumor_PD_5mgIpi_RNA_alevin_quant_crlikeem/", outputFormat = "snRNA")
+
+```
+
+## Convert gene IDs to gene symbols, collapse transcripts to gene symbols
+
+```{r}
+tx2gene <- read.table("/jsimonlab/genomes/hg38/gencode.v43.annotation_splici/gene_id_to_name.tsv",header=F,sep="\t",col.names=c("tx","gene"))
+
+# Use rownames of first object to apply to all
+exp.txId <- rownames(P101_Tumor_W00_2.5mgIpi_RNA)
+exp.geneId <- as.vector(tx2gene$gene[match(exp.txId, tx2gene$tx)])
+exp.tx.grp <- t(sparse.model.matrix(~ 0 + exp.geneId))
+
+P101_Tumor_W00_2.5mgIpi_RNA.summarized <- exp.tx.grp %*% counts(P101_Tumor_W00_2.5mgIpi_RNA)
+rownames(P101_Tumor_W00_2.5mgIpi_RNA.summarized) <- rownames(P101_Tumor_W00_2.5mgIpi_RNA.summarized) %>% str_replace_all(".+.geneId","")
+
+P101_Tumor_W12_2.5mgIpi_RNA.summarized <- exp.tx.grp %*% counts(P101_Tumor_W12_2.5mgIpi_RNA)
+rownames(P101_Tumor_W12_2.5mgIpi_RNA.summarized) <- rownames(P101_Tumor_W12_2.5mgIpi_RNA.summarized) %>% str_replace_all(".+.geneId","")
+
+P101_Tumor_W20_2.5mgIpi_RNA.summarized <- exp.tx.grp %*% counts(P101_Tumor_W20_2.5mgIpi_RNA)
+rownames(P101_Tumor_W20_2.5mgIpi_RNA.summarized) <- rownames(P101_Tumor_W20_2.5mgIpi_RNA.summarized) %>% str_replace_all(".+.geneId","")
+
+P103_Tumor_W00_2.5mgIpi_RNA.summarized <- exp.tx.grp %*% counts(P103_Tumor_W00_2.5mgIpi_RNA)
+rownames(P103_Tumor_W00_2.5mgIpi_RNA.summarized) <- rownames(P103_Tumor_W00_2.5mgIpi_RNA.summarized) %>% str_replace_all(".+.geneId","")
+
+P103_Tumor_W12_2.5mgIpi_RNA.summarized <- exp.tx.grp %*% counts(P103_Tumor_W12_2.5mgIpi_RNA)
+rownames(P103_Tumor_W12_2.5mgIpi_RNA.summarized) <- rownames(P103_Tumor_W12_2.5mgIpi_RNA.summarized) %>% str_replace_all(".+.geneId","")
+
+P103_Tumor_W20_2.5mgIpi_RNA.summarized <- exp.tx.grp %*% counts(P103_Tumor_W20_2.5mgIpi_RNA)
+rownames(P103_Tumor_W20_2.5mgIpi_RNA.summarized) <- rownames(P103_Tumor_W20_2.5mgIpi_RNA.summarized) %>% str_replace_all(".+.geneId","")
+
+P104_Tumor_PD_2.5mgIpi_RNA.summarized <- exp.tx.grp %*% counts(P104_Tumor_PD_2.5mgIpi_RNA)
+rownames(P104_Tumor_PD_2.5mgIpi_RNA.summarized) <- rownames(P104_Tumor_PD_2.5mgIpi_RNA.summarized) %>% str_replace_all(".+.geneId","")
+
+P108_Tumor_PD_5mgIpi_RNA.summarized <- exp.tx.grp %*% counts(P108_Tumor_PD_5mgIpi_RNA)
+rownames(P108_Tumor_PD_5mgIpi_RNA.summarized) <- rownames(P108_Tumor_PD_5mgIpi_RNA.summarized) %>% str_replace_all(".+.geneId","")
+
+```
+
+## Create Seurat objects
+
+```{r}
+P101_Tumor_W00_2.5mgIpi_RNA.seurat <- CreateSeuratObject(P101_Tumor_W00_2.5mgIpi_RNA.summarized)
+P101_Tumor_W12_2.5mgIpi_RNA.seurat <- CreateSeuratObject(P101_Tumor_W12_2.5mgIpi_RNA.summarized)
+P101_Tumor_W20_2.5mgIpi_RNA.seurat <- CreateSeuratObject(P101_Tumor_W20_2.5mgIpi_RNA.summarized)
+P103_Tumor_W00_2.5mgIpi_RNA.seurat <- CreateSeuratObject(P103_Tumor_W00_2.5mgIpi_RNA.summarized)
+P103_Tumor_W12_2.5mgIpi_RNA.seurat <- CreateSeuratObject(P103_Tumor_W12_2.5mgIpi_RNA.summarized)
+P103_Tumor_W20_2.5mgIpi_RNA.seurat <- CreateSeuratObject(P103_Tumor_W20_2.5mgIpi_RNA.summarized)
+P104_Tumor_PD_2.5mgIpi_RNA.seurat <- CreateSeuratObject(P104_Tumor_PD_2.5mgIpi_RNA.summarized)
+P108_Tumor_PD_5mgIpi_RNA.seurat <- CreateSeuratObject(P108_Tumor_PD_5mgIpi_RNA.summarized)
+
+```
+
+## Add sample name prefix to CBs
+
+```{r}
+P101_Tumor_W00_2.5mgIpi_RNA.seurat <- RenameCells(P101_Tumor_W00_2.5mgIpi_RNA.seurat,add.cell.id = "P101_Tumor_W00_2.5mgIpi_RNA")
+P101_Tumor_W12_2.5mgIpi_RNA.seurat <- RenameCells(P101_Tumor_W12_2.5mgIpi_RNA.seurat,add.cell.id = "P101_Tumor_W12_2.5mgIpi_RNA")
+P101_Tumor_W20_2.5mgIpi_RNA.seurat <- RenameCells(P101_Tumor_W20_2.5mgIpi_RNA.seurat,add.cell.id = "P101_Tumor_W20_2.5mgIpi_RNA")
+P103_Tumor_W00_2.5mgIpi_RNA.seurat <- RenameCells(P103_Tumor_W00_2.5mgIpi_RNA.seurat,add.cell.id = "P103_Tumor_W00_2.5mgIpi_RNA")
+P103_Tumor_W12_2.5mgIpi_RNA.seurat <- RenameCells(P103_Tumor_W12_2.5mgIpi_RNA.seurat,add.cell.id = "P103_Tumor_W12_2.5mgIpi_RNA")
+P103_Tumor_W20_2.5mgIpi_RNA.seurat <- RenameCells(P103_Tumor_W20_2.5mgIpi_RNA.seurat,add.cell.id = "P103_Tumor_W20_2.5mgIpi_RNA")
+P104_Tumor_PD_2.5mgIpi_RNA.seurat <- RenameCells(P104_Tumor_PD_2.5mgIpi_RNA.seurat,add.cell.id = "P104_Tumor_PD_2.5mgIpi_RNA")
+P108_Tumor_PD_5mgIpi_RNA.seurat <- RenameCells(P108_Tumor_PD_5mgIpi_RNA.seurat,add.cell.id = "P108_Tumor_PD_5mgIpi_RNA")
+
+```
+
+## Merge objects
+
+```{r}
+merged.18279.tumor <- merge(x = P101_Tumor_W00_2.5mgIpi_RNA.seurat, y=c(P101_Tumor_W12_2.5mgIpi_RNA.seurat, P101_Tumor_W20_2.5mgIpi_RNA.seurat, P103_Tumor_W00_2.5mgIpi_RNA.seurat, P103_Tumor_W12_2.5mgIpi_RNA.seurat, P103_Tumor_W20_2.5mgIpi_RNA.seurat, P104_Tumor_PD_2.5mgIpi_RNA.seurat, P108_Tumor_PD_5mgIpi_RNA.seurat))
+dim(merged.18279.tumor)
+```
+
+## QC filter
+Use relatively loose initial filters
+
+```{r}
+merged.18279.tumor <- subset(merged.18279.tumor, subset = nCount_RNA > 500 & nFeature_RNA > 250)
+dim(merged.18279.tumor)
+
+merged.18279.tumor <- PercentageFeatureSet(merged.18279.tumor, pattern = "^MT-", col.name = "percent.mt")
+merged.18279.tumor <- RunMiQC(merged.18279.tumor, 
+                        percent.mt = "percent.mt", 
+                        nFeature_RNA = "nFeature_RNA", 
+                        posterior.cutoff = 0.6, 
+                        model.slot = "flexmix_model")
+
+merged.18279.tumor <- subset(merged.18279.tumor, miQC.keep == "keep")
+
+dim(merged.18279.tumor)
+
+data.frame(table(str_replace_all(colnames(merged.18279.tumor),"_RNA_.+","")))
+```
+
+## Add meta data
+
+```{r}
+patient <- str_split_i(colnames(merged.18279.tumor),"_",1)
+site <- str_split_i(colnames(merged.18279.tumor),"_",2)
+timepoint <- str_split_i(colnames(merged.18279.tumor),"_",3)
+IpiCohort <- str_split_i(colnames(merged.18279.tumor),"_",4)
+assay <- str_split_i(colnames(merged.18279.tumor),"_",5)
+barcode <- str_split_i(colnames(merged.18279.tumor),"_",6)
+sample <- paste0(patient,"_",site,"_",timepoint,"_",IpiCohort,"_",assay)
+
+merged.18279.tumor <- AddMetaData(merged.18279.tumor, patient, col.name="Patient")
+merged.18279.tumor <- AddMetaData(merged.18279.tumor, site, col.name="Site")
+merged.18279.tumor <- AddMetaData(merged.18279.tumor, timepoint, col.name="Timepoint")
+merged.18279.tumor <- AddMetaData(merged.18279.tumor, IpiCohort, col.name="IpiCohort")
+merged.18279.tumor <- AddMetaData(merged.18279.tumor, assay, col.name="Assay")
+merged.18279.tumor <- AddMetaData(merged.18279.tumor, sample, col.name="Sample")
+```
+
+## Join then re-split RNA counts layers by Sample
+
+```{r}
+merged.18279.tumor[['RNA']] <- JoinLayers(merged.18279.tumor[['RNA']])
+merged.18279.tumor[["RNA"]] <- split(merged.18279.tumor[["RNA"]], f = merged.18279.tumor$Sample)
+```
+
+## Save merged object
+
+```{r}
+saveRDS(merged.18279.tumor,"Tumor_scRNA_Part1.rds")
+```
+
+## Get session info
+
+```{r}
+sessionInfo()
+```
