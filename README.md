@@ -21,6 +21,9 @@
   * Analysis of bulk TCR clonotypes and dynamics (_coming soon_)
   * Analysis of single-cell TCR clonotypes and integrative analyses with scRNA data (_coming soon_)
 
+  Additionally, source quarto markdown documents (`*.qmd`) are supplied here under each book's subdirectory, e.g.:
+
+  * https://github.com/jeremymsimon/BlassKeskin_Melanoma_NeoVax/tree/main/IFNg_book/source
 
 </p>
 
