@@ -1,0 +1,364 @@
+# scTCRseq: Define "Existing", "Post-Nivolumab", "Post-Vaccine" and vaccine-specifc clones in TILs and skin {sec-sctcr-define-clone-types}
+
+## Set up workspace
+```{r}
+# Libraries
+library(tidyverse)
+library(Seurat)
+library(dplyr)
+library(scRepertoire)
+
+# Functions
+#### Get frequency per clone across samples ------
+get_clone_freq_across_samples <- function(tcr_list){
+  all_freq.df <- data.frame(matrix(ncol = 2, nrow = 0))  
+  # Rename columns so full_join works
+  colnames(all_freq.df) <- c("beta", "vjaa")
+  # Change type from logical to character so full_join works
+  all_freq.df <- all_freq.df %>%
+    mutate(beta = as.character(beta),
+           vjaa = as.character(vjaa))
+  # Loop across each timepoint/sample and get raw count and frequency of all clones
+  for(i in c(1:length(tcr_list))){
+    # Count number of cells per clone in this timepoint
+    count_i <- tcr_list[[i]] %>%
+      group_by(sample, beta, vjaa) %>%
+      dplyr::count(sample, beta, vjaa)
+    
+    # Calculate total cells
+    count_sum <- sum(count_i$n)
+    
+    # Divide cell count per clone by total number of cells for frequency (out of 100)
+    freq_i <- count_i %>%
+      rowwise() %>%
+      mutate(freq = n/count_sum * 100) %>%
+      ungroup() %>%
+      dplyr::rename(!!paste0(names(tcr_list[i]), "_count") := "n",
+                    !!paste0(names(tcr_list[i]), "_freq") := "freq") %>%
+      select(-sample)
+    
+    # Append to dataframe holding frequencies and counts from all data
+    all_freq.df <- full_join(all_freq.df, freq_i, by = c("beta", "vjaa"))
+  }
+  # Replace NAs with 0
+  all_freq.df[is.na(all_freq.df)] <- 0
+  
+  return(all_freq.df)
+}
+
+### Get all barcodes per clone across all timepoints/samples
+get_barcodes_per_clone <- function(tcr_list, all_freq.df){
+  # For each clone, loop across each clone and pick up all barcodes across all timepoints with the clone
+  # First concatenate barcode dataframes from all timepoints together
+  all_barcodes.df <- do.call(rbind, tcr_list) %>%
+    select(barcode, vjaa)
+  # Create new dataframe to hold our clone-barcode mappings
+  barcode_clone.df <- data.frame(matrix(ncol = 2, nrow = 0))
+  # Now loop across all clones
+  for(j in c(1:nrow(all_freq.df))){
+    vjaa_j <- all_freq.df[j,"vjaa"]
+    # pull barcodes with the clone
+    barcodes_j <- all_barcodes.df %>%
+      filter(vjaa == vjaa_j) %>%
+      pull(barcode) %>%
+      paste(collapse = ",")
+    barcodes_vjaa_j <- c(barcodes_j, vjaa_j)
+    barcode_clone.df <- rbind(barcode_clone.df, barcodes_vjaa_j)
+  }
+  # Rename the clone-barcode mapping dataframe
+  colnames(barcode_clone.df) <- c("barcodes", "vjaa")
+  
+  return(barcode_clone.df)
+}
+
+#@Input: a list with multiple timepoints/samples as elements. Elements should be samples that you want to track clone frequencies across. 
+#@Description: Wrangle dataframe so that each row is a clone, defined by vjaa, and the columns are the frequency and list of barcodes at each timepoint -----
+track_chloetypes <- function(tcr_list){
+  # Calculate the count and frequency of each clone across all samples
+  all_freq.df <- get_clone_freq_across_samples(tcr_list)
+  
+  # Obtain the barcodes associated with each clone across all samples
+  barcode_clone.df <- get_barcodes_per_clone(tcr_list, all_freq.df)
+  
+  if(nrow(all_freq.df) != nrow(barcode_clone.df)){stop("Missing clones somewhere")}
+  
+  # Join freq df and barcodes together
+  freq_barcodes.df <- full_join(all_freq.df, barcode_clone.df, by = c("vjaa"))
+  
+  return(freq_barcodes.df)
+}
+
+```
+
+## Load experimentally tested reactive clones
+```{r}
+experimental_file <- read.csv("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/Eryn_reactivity_results/reformatted_reconstructed_TCR_072324.csv") %>%
+  mutate(vjaa = paste0(TRAV_1, ".", TRAJ_1, ";", CDR3A_1, "_", scTCR_TRBV_1, ".", TRBJ_1, ";", CDR3B_1))
+ 
+# What are the possible answers
+unique(experimental_file$Reactive)
+
+nonreactive_aa <- experimental_file %>%
+  filter(Reactive == "No")
+
+reactive_aa <- experimental_file %>%
+  filter(Reactive == "Yes")
+
+# Ensure there are 31 reactive TCRs in total
+reactive_aa %>%
+  dplyr::count(Patient)
+```
+
+## Load scRepertoire skin and tumor data with my custom vjaa column
+```{r}
+combined_TCR <- readRDS("sctcr_scRep_combined_TCR_skin_tumor_Part1.Rds")
+```
+
+## Format TCRs in TILs
+### Get frequencies of TILs in P101, P103, P104 and P108
+```{r}
+# Obtain clonal frequencies and associated barcodes from P101 TIL samples
+p101_tils_combined <- combined_TCR[c("P101_Tumor_W00","P101_Tumor_W12", "P101_Tumor_W20")]
+p101_tils_freq <- track_chloetypes(p101_tils_combined)
+# P103 TIL samples
+p103_tils_combined <- combined_TCR[c("P103_Tumor_W00","P103_Tumor_W12", "P103_Tumor_W20")]
+p103_tils_freq <- track_chloetypes(p103_tils_combined)
+# P104 TIL samples
+p104_tils_combined <- combined_TCR[c("P104_Tumor_PD")]
+p104_tils_freq <- track_chloetypes(p104_tils_combined)
+# P108 TIL samples
+p108_tils_combined <- combined_TCR[c("P108_Tumor_PD")]
+p108_tils_freq <- track_chloetypes(p108_tils_combined)
+```
+
+### Categorize clones into groups (Existing, Post-Nivolumab, Post-Vaccine) and attach vaccine reactivity
+Definitions-
+Existing clones: Seen the W00 timepoint
+Post-Nivolumab clones: Seen for the first time at the W12 timepoint
+Post-Nivolumab clones: Seen for the first time at the W20 timepoint
+```{r}
+p101_tils_freq <- p101_tils_freq %>%
+  mutate(sctcr_category = case_when(P101_Tumor_W00_freq > 0 ~ "Existing",
+                                  P101_Tumor_W00_freq == 0 & P101_Tumor_W12_freq > 0 ~ "Post-Nivolumab",
+                                  P101_Tumor_W00_freq == 0 & P101_Tumor_W12_freq == 0 & P101_Tumor_W20_freq > 0 ~ "Post-Vaccine"),
+         sctcr_category2 = case_when(vjaa %in% reactive_aa$vjaa ~ "Reactive",
+                                  P101_Tumor_W00_freq > 0 ~ "Existing",
+                                  P101_Tumor_W00_freq == 0 & P101_Tumor_W12_freq > 0 ~ "Post-Nivolumab",
+                                  P101_Tumor_W00_freq == 0 & P101_Tumor_W12_freq == 0 & P101_Tumor_W20_freq > 0 ~ "Post-Vaccine"),
+         sctcr_category3 = case_when(vjaa %in% reactive_aa$vjaa ~ "Reactive",
+                                   vjaa %in% nonreactive_aa$vjaa ~ "Tested, non-reactive",
+                                  P101_Tumor_W00_freq > 0 ~ "Existing",
+                                  P101_Tumor_W00_freq == 0 & P101_Tumor_W12_freq > 0 ~ "Post-Nivolumab",
+                                  P101_Tumor_W00_freq == 0 & P101_Tumor_W12_freq == 0 & P101_Tumor_W20_freq > 0 ~ "Post-Vaccine"),
+         reactive = case_when(vjaa %in% reactive_aa$vjaa ~ TRUE,
+                              !(vjaa %in% reactive_aa$vjaa) ~ FALSE))
+
+p103_tils_freq <- p103_tils_freq %>%
+  mutate(sctcr_category = case_when(P103_Tumor_W00_freq > 0 ~ "Existing",
+                                  P103_Tumor_W00_freq == 0 & P103_Tumor_W12_freq > 0 ~ "Post-Nivolumab",
+                                  P103_Tumor_W00_freq == 0 & P103_Tumor_W12_freq == 0 & P103_Tumor_W20_freq > 0 ~ "Post-Vaccine"),
+         sctcr_category2 = case_when(vjaa %in% reactive_aa$vjaa ~ "Reactive",
+                                  P103_Tumor_W00_freq > 0 ~ "Existing",
+                                  P103_Tumor_W00_freq == 0 & P103_Tumor_W12_freq > 0 ~ "Post-Nivolumab",
+                                  P103_Tumor_W00_freq == 0 & P103_Tumor_W12_freq == 0 & P103_Tumor_W20_freq > 0 ~ "Post-Vaccine"),
+         sctcr_category3 = case_when(vjaa %in% reactive_aa$vjaa ~ "Reactive",
+                                   vjaa %in% nonreactive_aa$vjaa ~ "Tested, non-reactive",
+                                  P103_Tumor_W00_freq > 0 ~ "Existing",
+                                  P103_Tumor_W00_freq == 0 & P103_Tumor_W12_freq > 0 ~ "Post-Nivolumab",
+                                  P103_Tumor_W00_freq == 0 & P103_Tumor_W12_freq == 0 & P103_Tumor_W20_freq > 0 ~ "Post-Vaccine"),
+         reactive = case_when(vjaa %in% reactive_aa$vjaa ~ TRUE,
+                              !(vjaa %in% reactive_aa$vjaa) ~ FALSE))
+
+p104_tils_freq <- p104_tils_freq %>%
+  filter(P104_Tumor_PD_freq > 0) %>%
+  mutate(reactive = case_when(vjaa %in% reactive_aa$vjaa ~ TRUE,
+                              !(vjaa %in% reactive_aa$vjaa) ~ FALSE))
+
+p108_tils_freq <- p108_tils_freq %>%
+  filter(P108_Tumor_PD_freq > 0) %>%
+  mutate(reactive = case_when(vjaa %in% reactive_aa$vjaa ~ TRUE,
+                              !(vjaa %in% reactive_aa$vjaa) ~ FALSE))
+```
+
+### Count how many reactive clones there are in each patients TILs
+```{r}
+p101_tils_freq %>%
+  filter(reactive == TRUE)
+p103_tils_freq %>%
+  filter(reactive == TRUE)
+p104_tils_freq %>%
+  filter(reactive == TRUE)
+p108_tils_freq %>%
+  filter(reactive == TRUE)
+```
+
+## Format skin
+### Get frequencies of clones in skin in P101, P103, P104 and P108
+```{r}
+# Obtain clonal frequencies and associated barcodes from P101 skin samples
+p101_skin_combined <- combined_TCR[c("P101_Skin_Pre3rd", "P101_Skin_Post3rd")]
+p101_skin_freq <- track_chloetypes(p101_skin_combined)
+# P103 skin samples
+p103_skin_combined <- combined_TCR[c("P103_Skin_Pre3rd", "P103_Skin_Post3rd")]
+p103_skin_freq <- track_chloetypes(p103_skin_combined)
+# P104 skin samples
+p104_skin_combined <- combined_TCR[c("P104_Skin_Pre3rd", "P104_Skin_Post3rd")]
+p104_skin_freq <- track_chloetypes(p104_skin_combined)
+# P105 skin samples
+p105_skin_combined <- combined_TCR[c("P105_Skin_Pre3rd", "P105_Skin_Post3rd")]
+p105_skin_freq <- track_chloetypes(p105_skin_combined)
+# P105 skin samples
+p106_skin_combined <- combined_TCR[c("P106_Skin_Pre3rd", "P106_Skin_Post3rd")]
+p106_skin_freq <- track_chloetypes(p106_skin_combined)
+# P108 skin samples
+p108_skin_combined <- combined_TCR[c("P108_Skin_Pre3rd", "P108_Skin_Post3rd")]
+p108_skin_freq <- track_chloetypes(p108_skin_combined)
+# P109 skin samples
+p109_skin_combined <- combined_TCR[c("P109_Skin_Pre3rd")]
+p109_skin_freq <- track_chloetypes(p109_skin_combined)
+# P110 skin samples
+p110_skin_combined <- combined_TCR[c("P110_Skin_Pre3rd", "P110_Skin_Post3rd")]
+p110_skin_freq <- track_chloetypes(p110_skin_combined)
+# P111 skin samples
+p111_skin_combined <- combined_TCR[c("P111_Skin_Pre3rd", "P111_Skin_Post3rd")]
+p111_skin_freq <- track_chloetypes(p111_skin_combined)
+```
+
+### Categorize clones into groups (Existing, Post-Nivolumab, Post-Vaccine) and attach vaccine reactivity
+Definitions-
+Existing clones: Seen the W00 timepoint
+Post-Nivolumab clones: Seen for the first time at the W12 timepoint
+Post-Nivolumab clones: Seen for the first time at the W20 timepoint
+```{r}
+p101_skin_freq <- p101_skin_freq %>%
+  mutate(sctcr_category = case_when(P101_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P101_Skin_Pre3rd_freq == 0 & P101_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category2 = case_when(vjaa %in% reactive_aa$vjaa ~ "Reactive",
+                                  P101_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P101_Skin_Pre3rd_freq == 0 & P101_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category3 = case_when(vjaa %in% reactive_aa$vjaa ~ "Reactive",
+                                   vjaa %in% nonreactive_aa$vjaa ~ "Tested, non-reactive",
+                                  P101_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P101_Skin_Pre3rd_freq == 0 & P101_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         reactive = case_when(vjaa %in% reactive_aa$vjaa ~ TRUE,
+                              !(vjaa %in% reactive_aa$vjaa) ~ FALSE))
+
+p103_skin_freq <- p103_skin_freq %>%
+  mutate(sctcr_category = case_when(P103_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P103_Skin_Pre3rd_freq == 0 & P103_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category2 = case_when(vjaa %in% reactive_aa$vjaa ~ "Reactive",
+                                  P103_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P103_Skin_Pre3rd_freq == 0 & P103_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category3 = case_when(vjaa %in% reactive_aa$vjaa ~ "Reactive",
+                                   vjaa %in% nonreactive_aa$vjaa ~ "Tested, non-reactive",
+                                  P103_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P103_Skin_Pre3rd_freq == 0 & P103_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         reactive = case_when(vjaa %in% reactive_aa$vjaa ~ TRUE,
+                              !(vjaa %in% reactive_aa$vjaa) ~ FALSE))
+
+p104_skin_freq <- p104_skin_freq %>%
+  mutate(sctcr_category = case_when(P104_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P104_Skin_Pre3rd_freq == 0 & P104_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category2 = case_when(vjaa %in% reactive_aa$vjaa ~ "Reactive",
+                                  P104_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P104_Skin_Pre3rd_freq == 0 & P104_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category3 = case_when(vjaa %in% reactive_aa$vjaa ~ "Reactive",
+                                   vjaa %in% nonreactive_aa$vjaa ~ "Tested, non-reactive",
+                                  P104_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P104_Skin_Pre3rd_freq == 0 & P104_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         reactive = case_when(vjaa %in% reactive_aa$vjaa ~ TRUE,
+                              !(vjaa %in% reactive_aa$vjaa) ~ FALSE))
+
+p105_skin_freq <- p105_skin_freq %>%
+  mutate(sctcr_category = case_when(P105_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P105_Skin_Pre3rd_freq == 0 & P105_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category2 = case_when(P105_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P105_Skin_Pre3rd_freq == 0 & P105_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category3 = case_when(P105_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P105_Skin_Pre3rd_freq == 0 & P105_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         reactive = FALSE)
+
+p106_skin_freq <- p106_skin_freq %>%
+  mutate(sctcr_category = case_when(P106_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P106_Skin_Pre3rd_freq == 0 & P106_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category2 = case_when(P106_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P106_Skin_Pre3rd_freq == 0 & P106_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category3 = case_when(P106_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P106_Skin_Pre3rd_freq == 0 & P106_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         reactive = FALSE)
+
+p108_skin_freq <- p108_skin_freq %>%
+  mutate(sctcr_category = case_when(P108_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P108_Skin_Pre3rd_freq == 0 & P108_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category2 = case_when(vjaa %in% reactive_aa$vjaa ~ "Reactive",
+                                  P108_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P108_Skin_Pre3rd_freq == 0 & P108_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category3 = case_when(vjaa %in% reactive_aa$vjaa ~ "Reactive",
+                                   vjaa %in% nonreactive_aa$vjaa ~ "Tested, non-reactive",
+                                  P108_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P108_Skin_Pre3rd_freq == 0 & P108_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         reactive = case_when(vjaa %in% reactive_aa$vjaa ~ TRUE,
+                              !(vjaa %in% reactive_aa$vjaa) ~ FALSE))
+
+p109_skin_freq <- p109_skin_freq %>%
+  mutate(sctcr_category = case_when(P109_Skin_Pre3rd_freq > 0 ~ "Pre3rd"),
+         sctcr_category2 = case_when(P109_Skin_Pre3rd_freq > 0 ~ "Pre3rd"),
+         sctcr_category3 = case_when(P109_Skin_Pre3rd_freq > 0 ~ "Pre3rd"),
+         reactive = FALSE)
+
+p110_skin_freq <- p110_skin_freq %>%
+  mutate(sctcr_category = case_when(P110_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P110_Skin_Pre3rd_freq == 0 & P110_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category2 = case_when(P110_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P110_Skin_Pre3rd_freq == 0 & P110_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category3 = case_when(P110_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P110_Skin_Pre3rd_freq == 0 & P110_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         reactive = FALSE)
+
+p111_skin_freq <- p111_skin_freq %>%
+  mutate(sctcr_category = case_when(P111_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P111_Skin_Pre3rd_freq == 0 & P111_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category2 = case_when(P111_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P111_Skin_Pre3rd_freq == 0 & P111_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         sctcr_category3 = case_when(P111_Skin_Pre3rd_freq > 0 ~ "Pre3rd",
+                                  P111_Skin_Pre3rd_freq == 0 & P111_Skin_Post3rd_freq > 0 ~ "Post3rd"),
+         reactive = FALSE)
+```
+
+### Count how many reactive clones there are in each sample
+```{r}
+p101_skin_freq %>%
+  filter(reactive == TRUE)
+p103_skin_freq %>%
+  filter(reactive == TRUE)
+p104_skin_freq %>%
+  filter(reactive == TRUE)
+p108_skin_freq %>%
+  filter(reactive == TRUE)
+```
+
+## Save scTCR frequencies
+```{r}
+# Save TILs
+write.csv(p101_tils_freq, "sctcr_scRep_p101_til_freq_Part2.csv", row.names = FALSE)
+write.csv(p103_tils_freq, "sctcr_scRep_p103_til_freq_Part2.csv", row.names = FALSE)
+write.csv(p104_tils_freq, "sctcr_scRep_p104_til_freq_Part2.csv", row.names = FALSE)
+write.csv(p108_tils_freq, "sctcr_scRep_p108_til_freq_Part2.csv", row.names = FALSE)
+
+# Save skin
+write.csv(p101_skin_freq, "sctcr_scRep_p101_skin_freq_Part2.csv", row.names = FALSE)
+write.csv(p103_skin_freq, "sctcr_scRep_p103_skin_freq_Part2.csv", row.names = FALSE)
+write.csv(p104_skin_freq, "sctcr_scRep_p104_skin_freq_Part2.csv", row.names = FALSE)
+write.csv(p105_skin_freq, "sctcr_scRep_p105_skin_freq_Part2.csv", row.names = FALSE)
+write.csv(p106_skin_freq, "sctcr_scRep_p106_skin_freq_Part2.csv", row.names = FALSE)
+write.csv(p108_skin_freq, "sctcr_scRep_p108_skin_freq_Part2.csv", row.names = FALSE)
+write.csv(p109_skin_freq, "sctcr_scRep_p109_skin_freq_Part2.csv", row.names = FALSE)
+write.csv(p110_skin_freq, "sctcr_scRep_p110_skin_freq_Part2.csv", row.names = FALSE)
+write.csv(p111_skin_freq, "sctcr_scRep_p111_skin_freq_Part2.csv", row.names = FALSE)
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
+

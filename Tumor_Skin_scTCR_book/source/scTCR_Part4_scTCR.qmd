@@ -1,0 +1,159 @@
+# scTCRseq: Mapping clones from scTCRseq to bulkTCRseq {sec-map-sctcr-to-bulktcr}
+
+## Set up workspace
+```{r}
+# Libraries
+library(tidyverse)
+library(Seurat)
+library(dplyr)
+library(scRepertoire)
+```
+
+## Load tumor data with clones loaded with a custom scRepertoire variable: vjaa (V gene, J gene, CDR3 aa)
+```{r}
+tcrs.list <- readRDS("sctcr_scRep_combined_TCR_skin_tumor_Part1.Rds")
+```
+
+## Concatenate TCRs into one dataframe
+```{r}
+tcrs <- do.call(rbind, tcrs.list)
+```
+
+## Create a dataframe of clones per patient, where each row is a chain from a clone.
+Tumor
+```{r}
+# Splitting TRA and TRB
+sctils_clone_chains <- tcrs %>%
+  filter(Site == "Tumor") %>%
+  group_by(Patient) %>%
+  dplyr::count(vjaa, Patient, Timepoint) %>%
+  arrange(desc(n)) %>%
+  dplyr::rename("tumor_vjaa_counts" = "n") %>%
+  mutate(bulk_chain = strsplit(as.character(vjaa), "_")) %>%
+  unnest(bulk_chain) %>%
+  filter(bulk_chain != "NA;NA") %>%
+  pivot_wider(id_cols = c(Patient, vjaa, bulk_chain), names_from = Timepoint, values_from = tumor_vjaa_counts) %>%
+  replace(is.na(.), 0)
+
+# Get clones with just 1 TRA or TRB chain
+sctils_chain_one <- sctils_clone_chains %>%
+  filter(str_count(bulk_chain, ";") == 1)
+
+# Unnest clones with more than 1 TRA or TRB chain
+sctils_chain_multi <- sctils_clone_chains %>%
+  filter(str_count(bulk_chain, ";") > 1) %>%
+  # split vjaa into 4 columns
+  mutate(vj1 = str_split_i(bulk_chain, ";", 1),
+         vj2 = str_split_i(bulk_chain, ";", 2),
+         aa1 = str_split_i(bulk_chain, ";", 3),
+         aa2 = str_split_i(bulk_chain, ";", 4),
+         vjaa1 = paste0(vj1, ";", aa1),
+         vjaa2 = paste0(vj2, ";", aa2)) %>%
+  select(Patient, vjaa1, vjaa2, vjaa, W00, W12, W20, PD) %>%
+  pivot_longer(cols = c("vjaa1", "vjaa2"), names_to = "chain", values_to = "bulk_chain") %>%
+  select(-chain)
+
+sctils_clone_chains <- rbind(sctils_chain_one, sctils_chain_multi)
+
+# Add vjaa counts across tumor
+sctils_clone_chains <- sctils_clone_chains %>%
+  mutate(tumor_vjaa_counts = W20 + W12 + W00 + PD)
+
+# Check that all clones are unique across patients
+sctils_clone_chains %>% distinct(vjaa, Patient, .keep_all = TRUE) %>% filter(duplicated(vjaa))
+```
+
+Skin
+```{r}
+# Splitting TRA and TRB from one clone into separate rows
+scskin_clone_chains <- tcrs %>%
+  filter(Site == "Skin") %>%
+  group_by(Patient) %>%
+  dplyr::count(vjaa, Timepoint, Patient) %>%
+  arrange(desc(n)) %>%
+  dplyr::rename("skin_vjaa_counts" = "n") %>%
+  mutate(bulk_chain = strsplit(as.character(vjaa), "_")) %>%
+  unnest(bulk_chain) %>%
+  filter(bulk_chain != "NA;NA") %>%
+  pivot_wider(id_cols = c(Patient, vjaa, bulk_chain), names_from = Timepoint, values_from = skin_vjaa_counts) %>%
+  replace(is.na(.), 0)
+
+# Get clones with just 1 TRA or TRB chain
+scskin_chain_one <- scskin_clone_chains %>%
+  filter(str_count(bulk_chain, ";") == 1)
+
+# Unnest clones with more than 1 TRA or TRB chain
+scskin_chain_multi <- scskin_clone_chains %>%
+  filter(str_count(bulk_chain, ";") > 1) %>%
+  # split vjaa into 4 columns
+  mutate(vj1 = str_split_i(bulk_chain, ";", 1),
+         vj2 = str_split_i(bulk_chain, ";", 2),
+         aa1 = str_split_i(bulk_chain, ";", 3),
+         aa2 = str_split_i(bulk_chain, ";", 4),
+         vjaa1 = paste0(vj1, ";", aa1),
+         vjaa2 = paste0(vj2, ";", aa2)) %>%
+  select(Patient, vjaa1, vjaa2, vjaa, Pre3rd, Post3rd) %>%
+  pivot_longer(cols = c("vjaa1", "vjaa2"), names_to = "chain", values_to = "bulk_chain") %>%
+  select(-chain)
+
+scskin_clone_chains <- rbind(scskin_chain_one, scskin_chain_multi)
+
+# Add vjaa counts across skin
+scskin_clone_chains <- scskin_clone_chains %>%
+  mutate(skin_vjaa_counts = Post3rd + Pre3rd)
+
+# All clones are unique across patients
+scskin_clone_chains %>% distinct(vjaa, Patient, .keep_all = TRUE) %>% filter(duplicated(vjaa))
+```
+
+## Merge clones into one dataframe and count clone frequency over both tumor and skin
+```{r}
+sc_clone_chains <- sctils_clone_chains %>%
+  full_join(scskin_clone_chains, by = c("Patient", "vjaa", "bulk_chain")) %>%
+  replace(is.na(.), 0) %>%
+  mutate(total_vjaa_counts = tumor_vjaa_counts + skin_vjaa_counts) %>%
+  arrange(desc(total_vjaa_counts))
+```
+
+## Create clone IDs based on decreasing clone frequency in both skin and tumor
+```{r}
+sc_clone_ids <- sc_clone_chains %>%
+  group_by(Patient) %>%
+  distinct(Patient, vjaa) %>%
+  mutate(obs = 1:n(),
+         sc_clone_id = paste0(Patient, "_", obs)) %>%
+  select(-obs) 
+```
+
+## Add clone IDs to full dataframe
+```{r}
+sc_clone_chains <- sc_clone_chains %>%
+  left_join(sc_clone_ids, by = c("Patient", "vjaa"))
+```
+
+## Reformat chains to match bulk format
+```{r}
+sc_clone_chains <- sc_clone_chains %>% 
+  # Reformat certain V genes to match bulk (bulk can't differentiate btwn certain V genes)
+  mutate(bulk_chain = str_replace_all(bulk_chain, "TRBV12-3|TRBV12-4", "TRBV12-3/4"),
+         bulk_chain = str_replace_all(bulk_chain, "TRBV6-2|TRBV6-3|TRBV6-5|TRBV6-6", "TRBV6-2/3/5/6"),
+         bulk_chain = str_replace_all(bulk_chain, "TRAV29/DV5", "TRAV29DV5"),
+         bulk_chain = str_replace_all(bulk_chain, "TRAV14/DV4", "TRAV14DV4"),
+         bulk_chain = str_replace_all(bulk_chain, "TRAV23/DV6", "TRAV23DV6"),
+         bulk_chain = str_replace_all(bulk_chain, "TRAV36/DV7", "TRAV36DV7"),
+         bulk_chain = str_replace_all(bulk_chain, "TRAV38-2/DV8", "TRAV38-2DV8")) %>%
+  # Reformat the . separator to ; as per bulk
+  mutate(bulk_chain = str_replace_all(bulk_chain, fixed("."), ";"),)
+
+```
+
+## Save clone mapping
+```{r}
+write.csv(sc_clone_chains, "scTCR_bulkTCR_chain_mapping_Part4.csv", row.names = FALSE)
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
+

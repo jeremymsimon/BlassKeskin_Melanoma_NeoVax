@@ -1,0 +1,265 @@
+# scTCRseq: Plot significantly expanded (PBMC-derived) and scTIL beta chain overlap {sec-sctcr-significantly-expanded-venn-diagram}
+
+## Set up workspace
+```{r}
+# Libraries
+library(tidyverse)
+library(Seurat)
+library(dplyr)
+library(scRepertoire)
+library(Vennerable)
+library(grid)
+```
+
+## Open mapping of single cell clonotypes to separated alpha and beta chains from scTCR data (regardless of scRNA)
+```{r}
+sc_bulk_mapping <- read.csv("scTCR_bulkTCR_chain_mapping_Part4.csv")
+```
+
+## Load categories
+```{r}
+p101_til_categories <- read.csv("sctcr_scRep_p101_til_freq_Part2.csv") %>%
+  mutate(Patient = "P101")
+p103_til_categories <- read.csv("sctcr_scRep_p103_til_freq_Part2.csv") %>%
+  mutate(Patient = "P103")
+
+til_categories <- rbind(p101_til_categories[,c("Patient", "vjaa", "sctcr_category")], p103_til_categories[,c("Patient", "vjaa", "sctcr_category")])
+```
+
+## Join categories
+```{r}
+sc_bulk_mapping <- sc_bulk_mapping %>%
+  left_join(til_categories) %>%
+  filter(tumor_vjaa_counts > 0)
+
+sc_bulk_mapping %>%
+  group_by(Patient, sctcr_category) %>%
+  dplyr::count()
+```
+
+## Load typed clones 
+```{r}
+p101_betas_typed <- read.csv("p101_betas_merged_typed_Part3.csv") %>%
+  mutate(Beta_clonotype_Pt = paste0(Patient, "_", Beta_clonotype)) %>%
+  dplyr::rename("bulk_Type" = "Type")
+p103_betas_typed <- read.csv("p103_betas_merged_typed_Part3.csv") %>%
+  mutate(Beta_clonotype_Pt = paste0(Patient, "_", Beta_clonotype)) %>%
+  dplyr::rename("bulk_Type" = "Type")
+```
+
+# Load clones that significantly expanded after nivolumab and vaccination 
+```{r}
+p101_se_nivo <- read.csv("p101_pval_prevax_vs_pretreatment_Part4.csv") %>%
+  filter(sig == "Sig") %>%
+  # Select important columns
+    select(Beta_clonotype, sig, Patient) %>%
+    # Rename sig
+    dplyr::rename("SE_nivo" = "sig")
+p101_se_vax <- read.csv("p101_pval_postvax_vs_prevax_Part4.csv") %>%
+  filter(sig == "Sig") %>%
+  mutate(Patient = "P101") %>%
+    select(Beta_clonotype, sig, Patient) %>%
+    dplyr::rename("SE_vax" = "sig")
+
+p103_se_nivo <- read.csv("p103_pval_prevax_vs_pretreatment_Part4.csv") %>%
+  filter(sig == "Sig") %>%
+    select(Beta_clonotype, sig, Patient) %>%
+    dplyr::rename("SE_nivo" = "sig")
+p103_se_vax <- read.csv("p103_pval_postvax_vs_prevax_Part4.csv") %>%
+  filter(sig == "Sig") %>%
+  mutate(Patient = "P103") %>%
+    select(Beta_clonotype, sig, Patient) %>%
+    dplyr::rename("SE_vax" = "sig")
+```
+
+## Set up data
+```{r}
+# P101
+p101_w00_sctils_betas <- sc_bulk_mapping %>%
+  filter(str_detect(bulk_chain, "TRB"),
+         Patient %in% c("P101"),
+         sctcr_category == "Existing")
+p101_w12_sctils_betas <- sc_bulk_mapping %>%
+  filter(str_detect(bulk_chain, "TRB"),
+         Patient %in% c("P101"),
+         sctcr_category == "Post-Nivolumab")
+p101_w20_sctils_betas <- sc_bulk_mapping %>%
+  filter(str_detect(bulk_chain, "TRB"),
+         Patient %in% c("P101"),
+         sctcr_category == "Post-Vaccine")
+
+# P103
+p103_w00_sctils_betas <- sc_bulk_mapping %>%
+  filter(str_detect(bulk_chain, "TRB"),
+         Patient %in% c("P103"),
+         sctcr_category == "Existing")
+p103_w12_sctils_betas <- sc_bulk_mapping %>%
+  filter(str_detect(bulk_chain, "TRB"),
+         Patient %in% c("P103"),
+         sctcr_category == "Post-Nivolumab")
+p103_w20_sctils_betas <- sc_bulk_mapping %>%
+  filter(str_detect(bulk_chain, "TRB"),
+         Patient %in% c("P103"),
+         sctcr_category == "Post-Vaccine")
+```
+
+## Plot the overlap of significantly expanding clones after nivo, after vaccine, and the scTIL beta chains at each timepoint for Fig S7G
+### P101 W00
+```{r}
+p101_w00_dat <- Venn(list(`Pre-treatment scTILs` = p101_w00_sctils_betas$bulk_chain, 
+                           `SE Vax` = p101_se_vax$Beta_clonotype,
+                           `SE Nivo` = p101_se_nivo$Beta_clonotype))
+
+# Compute venn object
+p101_w00_venn <- compute.Venn(p101_w00_dat, doWeights = TRUE)
+
+# Create graphical params
+p101_gp <- VennThemes(p101_w00_venn)
+
+# Adjust graphical params
+# Adjust the color of the circles borders
+p101_gp[["Set"]][["Set1"]]$col <- "#9f2dea"
+p101_gp[["Set"]][["Set2"]]$col <- "#0072B2"
+p101_gp[["Set"]][["Set3"]]$col <- "darkgoldenrod3"
+# p101_gp[["Set"]][["Set1"]]$col <- "black" 
+# p101_gp[["Set"]][["Set2"]]$col <- "black" 
+# p101_gp[["Set"]][["Set3"]]$col <- "black" 
+# Adjust the color of the circles themselves
+p101_gp[["Face"]][["110"]]$fill <- "#7161e499"
+p101_gp[["Face"]][["101"]]$fill <- "#eb6f6f99"
+p101_gp[["Face"]][["100"]]$fill <- "#9f2dea90"
+p101_gp[["Face"]][["010"]]$fill <- "#1659b790"
+p101_gp[["Face"]][["001-1"]]$fill <- "#e5a64d90"
+p101_gp[["Face"]][["000"]]$fill <- "white"
+# Adjust the color of the labels
+p101_gp[["SetText"]][["Set1"]]$col <- "#9f2dea"
+p101_gp[["SetText"]][["Set2"]]$col <- "#0072B2"
+p101_gp[["SetText"]][["Set3"]]$col <- "darkgoldenrod3"
+# Adjust the size of the numbers
+p101_gp[["FaceText"]][["000"]]$fontsize <- 0
+
+grid.newpage()
+plot(p101_w00_venn, gp = p101_gp)
+```
+
+## P101 W12
+```{r}
+p101_w12_dat <- Venn(list(`Post-Nivolumab scTILs` = p101_w12_sctils_betas$bulk_chain, 
+                           `SE Vax` = p101_se_vax$Beta_clonotype,
+                           `SE Nivo` = p101_se_nivo$Beta_clonotype))
+
+# Compute venn object
+p101_w12_venn <- compute.Venn(p101_w12_dat, doWeights = TRUE)
+
+grid.newpage()
+plot(p101_w12_venn, gp = p101_gp)
+```
+
+## P101 W20
+```{r}
+p101_w20_dat <- Venn(list(`Post-vaccine scTILs` = p101_w20_sctils_betas$bulk_chain, 
+                           `SE Vax` = p101_se_vax$Beta_clonotype,
+                           `SE Nivo` = p101_se_nivo$Beta_clonotype))
+
+# Compute venn object
+p101_w20_venn <- compute.Venn(p101_w20_dat, doWeights = TRUE)
+
+grid.newpage()
+plot(p101_w20_venn, gp = p101_gp)
+```
+
+## P103 W00
+```{r}
+p103_w00_dat <- Venn(list(`Pre-treatment scTILs` = p103_w00_sctils_betas$bulk_chain, 
+                           `SE Vax` = p103_se_vax$Beta_clonotype,
+                           `SE Nivo` = p103_se_nivo$Beta_clonotype))
+
+# Compute venn object
+p103_w00_venn <- compute.Venn(p103_w00_dat, doWeights = FALSE)
+
+# Create graphical params for P103
+p103_gp_00 <- VennThemes(p103_w00_venn)
+
+# Adjust graphical params
+# Adjust the color of the circles borders
+p103_gp_00[["Set"]][["Set1"]]$col <- "#9f2dea"
+p103_gp_00[["Set"]][["Set2"]]$col <- "#0072B2"
+p103_gp_00[["Set"]][["Set3"]]$col <- "darkgoldenrod3"
+# p103_gp[["Set"]][["Set1"]]$col <- "black" 
+# p103_gp[["Set"]][["Set2"]]$col <- "black" 
+# p103_gp[["Set"]][["Set3"]]$col <- "black" 
+# Adjust the color of the circles themselves
+p103_gp_00[["Face"]][["110"]]$fill <- "#7161e499"
+p103_gp_00[["Face"]][["101"]]$fill <- "#eb6f6f99"
+p103_gp_00[["Face"]][["100"]]$fill <- "#9f2dea90"
+p103_gp_00[["Face"]][["010"]]$fill <- "#1659b790"
+p103_gp_00[["Face"]][["001-1"]]$fill <- "#e5a64d90"
+p103_gp_00[["Face"]][["011"]]$fill <- "#87782190"
+p103_gp_00[["Face"]][["001"]]$fill <- "#ce550090"
+p103_gp_00[["Face"]][["000"]]$fill <- "#6f673999"
+# Adjust the color of the labels
+p103_gp_00[["SetText"]][["Set1"]]$col <- "#9f2dea"
+p103_gp_00[["SetText"]][["Set2"]]$col <- "#0072B2"
+p103_gp_00[["SetText"]][["Set3"]]$col <- "darkgoldenrod3"
+# Adjust the size of the numbers
+p103_gp_00[["FaceText"]][["000"]]$fontsize <- 0
+
+grid.newpage()
+plot(p103_w00_venn, gp = p103_gp_00)
+```
+
+## P101 W12
+```{r}
+p103_w12_dat <- Venn(list(`Post-Nivolumab scTILs` = p103_w12_sctils_betas$bulk_chain, 
+                           `SE Vax` = p103_se_vax$Beta_clonotype,
+                           `SE Nivo` = p103_se_nivo$Beta_clonotype))
+
+# Compute venn object
+p103_w12_venn <- compute.Venn(p103_w12_dat, doWeights = FALSE)
+
+
+# Create graphical params for P103
+p103_gp <- VennThemes(p103_w12_venn)
+
+# Adjust graphical params
+# Adjust the color of the circles borders
+p103_gp[["Set"]][["Set1"]]$col <- "#9f2dea"
+p103_gp[["Set"]][["Set2"]]$col <- "#0072B2"
+p103_gp[["Set"]][["Set3"]]$col <- "darkgoldenrod3"
+# p103_gp[["Set"]][["Set1"]]$col <- "black" 
+# p103_gp[["Set"]][["Set2"]]$col <- "black" 
+# p103_gp[["Set"]][["Set3"]]$col <- "black" 
+# Adjust the color of the circles themselves
+p103_gp[["Face"]][["110"]]$fill <- "#7161e499"
+p103_gp[["Face"]][["101"]]$fill <- "#eb6f6f99"
+p103_gp[["Face"]][["100"]]$fill <- "#9f2dea90"
+p103_gp[["Face"]][["010"]]$fill <- "#1659b790"
+p103_gp[["Face"]][["011"]]$fill <- "#ce550090"
+p103_gp[["Face"]][["001"]]$fill <- "#e5a64d90"
+p103_gp[["Face"]][["000"]]$fill <- "#6f673999"
+# Adjust the color of the labels
+p103_gp[["SetText"]][["Set1"]]$col <- "#9f2dea"
+p103_gp[["SetText"]][["Set2"]]$col <- "#0072B2"
+p103_gp[["SetText"]][["Set3"]]$col <- "darkgoldenrod3"
+
+grid.newpage()
+plot(p103_w12_venn, gp = p103_gp)
+```
+
+## P103 W20
+```{r}
+p103_w20_dat <- Venn(list(`Post-vaccine scTILs` = p103_w20_sctils_betas$bulk_chain, 
+                           `SE Vax` = p103_se_vax$Beta_clonotype,
+                           `SE Nivo` = p103_se_nivo$Beta_clonotype))
+
+# Compute venn object
+p103_w20_venn <- compute.Venn(p103_w20_dat, doWeights = FALSE)
+
+grid.newpage()
+plot(p103_w20_venn, gp = p103_gp)
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```

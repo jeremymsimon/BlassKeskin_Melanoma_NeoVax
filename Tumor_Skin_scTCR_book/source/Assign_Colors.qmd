@@ -1,0 +1,103 @@
+# Save scTCR and bulkTCR colorschemes {#sec-pbmc-define-colorschemes}
+
+## Set up workspace
+```{r}
+# Libraries
+library(Seurat)
+library(colorblindr)
+library(RColorBrewer)
+library(paletteer)
+library(dplyr)
+library(tidyverse)
+```
+
+## Assign custom color scheme
+```{r}
+projectils_fill <- scale_fill_manual(values = c("CD4.NaiveLike" = "#F7FBFF", "CD4.Memory" = "#DEEBF7", "CD4.Tfh" = "#C6DBEF", "CD4.Th17" = "#9ECAE1", "CD4.CTL_GNLY" = "#6BAED6", "CD4.CTL_EOMES" = "#4292C6", "CD4.CTL_Exh" = "#2171B5", "CD4.Treg" = "#084594", "CD8.NaiveLike" = "#FEE5D9", "CD8.MAIT" = "#FCBBA1", "CD8.CM" = "#FC9272", "CD8.EM" = "#FB6A4A", "CD8.TEMRA" = "#EF3B2C", "CD8.TPEX" = "#CB181D", "CD8.TEX" = "#99000D"))
+
+projectils_color <- scale_color_manual(values = c("CD4.NaiveLike" = "#F7FBFF", "CD4.Memory" = "#DEEBF7", "CD4.Tfh" = "#C6DBEF", "CD4.Th17" = "#9ECAE1", "CD4.CTL_GNLY" = "#6BAED6", "CD4.CTL_EOMES" = "#4292C6", "CD4.CTL_Exh" = "#2171B5", "CD4.Treg" = "#084594", "CD8.NaiveLike" = "#FEE5D9", "CD8.MAIT" = "#FCBBA1", "CD8.CM" = "#FC9272", "CD8.EM" = "#FB6A4A", "CD8.TEMRA" = "#EF3B2C", "CD8.TPEX" = "#CB181D", "CD8.TEX" = "#99000D"))
+```
+
+## Relevel functional.cluster factor before plotting
+```{r}
+projectils_celltypes <- c("CD4.NaiveLike", "CD4.Memory", "CD4.Tfh", "CD4.Th17", "CD4.CTL_GNLY", "CD4.CTL_EOMES", "CD4.CTL_Exh", "CD4.Treg", "CD8.NaiveLike","CD8.MAIT", "CD8.CM", "CD8.EM", "CD8.TEMRA", "CD8.TPEX", "CD8.TEX")
+
+projectils_celltypes <- factor(projectils_celltypes, levels = c("CD4.NaiveLike", "CD4.Memory", "CD4.Tfh", "CD4.Th17", "CD4.CTL_GNLY", "CD4.CTL_EOMES", "CD4.CTL_Exh", "CD4.Treg", "CD8.NaiveLike","CD8.MAIT", "CD8.CM", "CD8.EM", "CD8.TEMRA", "CD8.TPEX", "CD8.TEX"))
+```
+
+## Check plots are working
+```{r}
+# A plot with all the data
+p <- projectils_celltypes %>%
+  as.data.frame(functional.cluster = projectils_celltypes) %>%
+  ggplot(aes(x = 1, fill = projectils_celltypes)) + 
+  geom_bar() + 
+  projectils_fill
+p
+
+```
+
+## Check colors for colorblindness
+```{r}
+cvd_grid(p)
+```
+
+## Save color and fill environment variables
+```{r}
+saveRDS(projectils_fill, "Part0_ProjecTILs_Fill.rds")
+saveRDS(projectils_color, "Part0_ProjecTILs_Color.rds")
+```
+
+## Load ifng, tumor and skin single cell data
+```{r}
+patients <- c("P101", "P103", "P104", "P105", "P106", "P108", "P109", "P110", "P111")
+```
+
+## Create factors
+```{r}
+patients <- data.frame(Patient = patients) %>%
+  mutate(Patient = factor(Patient))
+```
+
+## Assign custom color scheme
+```{r}
+colors <- c( "#59A14F",  "#B07AA1FF", "#76B7B2FF", "#FBB258FF", "#DC050C", "#F6AAC9FF", "#5ca2e5", "#615ebf", "#826250") 
+
+names(colors) <- levels(patients$Patient)
+patient_fill <- scale_fill_manual(values = colors)
+patient_color <- scale_color_manual(values = colors)
+```
+
+## Check plots are working
+```{r}
+# A plot with all the data
+p <- ggplot(patients, aes(x = 1,fill = Patient)) + 
+  geom_bar() + 
+  patient_fill
+p + ggtitle("BulkTCR Patients")
+
+# A plot with the single cell patients: P101, P103, P104 and P108
+p2 <- patients[c(1,2,3,6), 1, drop = FALSE] %>%
+  ggplot(aes(x = 1,fill = Patient)) + 
+  geom_bar() + 
+  patient_fill
+p2 + ggtitle("scRNA Patients")
+```
+
+## Check colors for colorblindness
+```{r}
+cvd_grid(p)
+cvd_grid(p2)
+```
+
+## Save color and fill environment variables
+```{r}
+saveRDS(patient_fill, "Part0_Patient_Fill.rds")
+saveRDS(patient_color, "Part0_Patient_Color.rds")
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
+

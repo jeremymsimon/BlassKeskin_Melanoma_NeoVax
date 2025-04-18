@@ -1,0 +1,117 @@
+# scTCRseq Tumor: Attach scTCRs and categorizations to scRNA object {sec-tumor-attach-sctcr-scrna}
+
+## Set up workspace
+```{r}
+# Libraries
+library(tidyverse)
+library(Seurat)
+library(dplyr)
+library(scRepertoire)
+library(data.table)
+```
+
+## Load categorizations of scTCR clones
+```{r}
+p101_tils <- read.csv("sctcr_scRep_p101_til_freq_Part2.csv")
+p103_tils <- read.csv("sctcr_scRep_p103_til_freq_Part2.csv")
+p104_tils <- read.csv("sctcr_scRep_p104_til_freq_Part2.csv")
+p108_tils <- read.csv("sctcr_scRep_p108_til_freq_Part2.csv")
+```
+
+## Reformat dataframes so that each scTCR barcode has its own row
+```{r}
+p101_tils_reformatted <- data.frame()
+for(i in c(1:nrow(p101_tils))){
+  tcr_categories <- p101_tils[i, c("sctcr_category", "sctcr_category2", "sctcr_category3", "reactive")]
+  barcodes <- p101_tils[i,"barcodes"]
+  barcodes <- str_split_1(barcodes, ",")
+  reformatted_df <- as.data.frame(barcodes)
+  reformatted_df <- cbind(reformatted_df, tcr_categories)
+  p101_tils_reformatted <- rbind(p101_tils_reformatted, reformatted_df)
+}
+rownames(p101_tils_reformatted) <- p101_tils_reformatted$barcodes
+  
+p103_tils_reformatted <- data.frame()
+for(i in c(1:nrow(p103_tils))){
+  tcr_categories <- p103_tils[i, c("sctcr_category", "sctcr_category2", "sctcr_category3", "reactive")]
+  barcodes <- p103_tils[i,"barcodes"]
+  barcodes <- str_split_1(barcodes, ",")
+  reformatted_df <- as.data.frame(barcodes)
+  reformatted_df <- cbind(reformatted_df, tcr_categories)
+  p103_tils_reformatted <- rbind(p103_tils_reformatted, reformatted_df)
+}
+rownames(p103_tils_reformatted) <- p103_tils_reformatted$barcodes
+
+p104_tils_reformatted <- data.frame()
+for(i in c(1:nrow(p104_tils))){
+  reactive <- p104_tils[i, c("reactive")]
+  barcodes <- p104_tils[i,"barcodes"]
+  barcodes <- str_split_1(barcodes, ",")
+  reformatted_df <- as.data.frame(barcodes)
+  reformatted_df <- cbind(reformatted_df, reactive)
+  p104_tils_reformatted <- rbind(p104_tils_reformatted, reformatted_df)
+}
+rownames(p104_tils_reformatted) <- p104_tils_reformatted$barcodes
+
+p108_tils_reformatted <- data.frame()
+for(i in c(1:nrow(p108_tils))){
+  reactive <- p108_tils[i, c("reactive")]
+  barcodes <- p108_tils[i,"barcodes"]
+  barcodes <- str_split_1(barcodes, ",")
+  reformatted_df <- as.data.frame(barcodes)
+  reformatted_df <- cbind(reformatted_df, reactive)
+  p108_tils_reformatted <- rbind(p108_tils_reformatted, reformatted_df)
+}
+rownames(p108_tils_reformatted) <- p108_tils_reformatted$barcodes
+```
+
+## Merge categories and reactivity per barcode into one dataframe
+```{r}
+tils_category_reactivity <- rbindlist(list(p101_tils_reformatted, p103_tils_reformatted, p104_tils_reformatted, p108_tils_reformatted), fill = TRUE)
+
+# Add barcode
+rownames(tils_category_reactivity) <- tils_category_reactivity$barcode
+```
+
+## Load scRepertoire skin and tumor data with my custom vjaa column
+```{r}
+combined_TCR <- readRDS("sctcr_scRep_combined_TCR_skin_tumor_Part1.Rds")
+```
+
+## Open latest scRNA object
+```{r}
+tumor.18279 <- readRDS("/jsimonlab/projects/Wu/Melanoma_scRNA_Eryn/Analysis_072324_Tumor/Melanoma_18-279_TUMOR_scRNA_USA_alevin-fry_seurat_integrated_harmony_clustered_withSexes_TNKsubClustered_withProjecTILs_CD4_CD8.rds")
+```
+
+## Link scTCR data to scRNA data
+```{r}
+combined_TCR$P101_Skin_Post3rd$barcode[1:10]
+colnames(tumor.18279)[1:10]
+
+colnames(tumor.18279) <- str_replace_all(str_replace_all(colnames(tumor.18279),"_.{0,2}5mgIpi_RNA",""),"$","-1")
+colnames(tumor.18279)[1:10]
+
+# Bugs out when you use capital letters in your custom call
+tumor.18279 <- combineExpression(combined_TCR, 
+                         tumor.18279, 
+                         cloneCall="vjaa", 
+                         group.by = "sample", 
+                         proportion = TRUE)
+```
+
+
+## Attach categories into metadata
+```{r}
+tumor.18279 <- AddMetaData(tumor.18279, tils_category_reactivity)
+```
+
+## Save scRNA object with all TCRs formatted via scRep, TCR reactivities, and TCR categories/types (Exisiting, Post-Nivo, Post-Vax defined in TILs)
+```{r}
+saveRDS(tumor.18279, "scRNA_TCR_Tumor_Part3.Rds")
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
+

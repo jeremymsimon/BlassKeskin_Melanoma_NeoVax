@@ -1,0 +1,143 @@
+# scTCRseq: Plot clone frequency over time {sec-sctcr-clone-frequency-plot}
+
+## Set up workspace
+```{r}
+# Libraries
+library(tidyverse)
+library(Seurat)
+library(dplyr)
+library(scRepertoire)
+library(patchwork)
+library(cowplot)
+library(grid)
+library(forcats)
+```
+
+## Load P101 and P103 TILs
+```{r}
+p101_tils <- read.csv("sctcr_scRep_p101_til_freq_Part2.csv")
+p103_tils <- read.csv("sctcr_scRep_p103_til_freq_Part2.csv")
+```
+
+## Format for frequency plots
+```{r}
+p101_tils_long <- p101_tils %>%
+  pivot_longer(cols=c("P101_Tumor_W00_freq", "P101_Tumor_W12_freq", "P101_Tumor_W20_freq"), values_to = "Freq", names_to = "Timepoint") %>%
+  mutate(patient = "P101") %>%
+  select(-P101_Tumor_W00_count, -P101_Tumor_W12_count, -P101_Tumor_W20_count)
+p103_tils_long <- p103_tils %>%
+  pivot_longer(cols=c("P103_Tumor_W00_freq", "P103_Tumor_W12_freq", "P103_Tumor_W20_freq"), values_to = "Freq", names_to = "Timepoint") %>%
+  mutate(patient = "P103") %>%
+  select(-P103_Tumor_W00_count, -P103_Tumor_W12_count, -P103_Tumor_W20_count)
+
+tils_long <- rbind(p101_tils_long, p103_tils_long)
+
+tils_long <- tils_long %>%
+  mutate(sctcr_category = factor(sctcr_category, levels = c("Existing", "Post-Nivolumab", "Post-Vaccine")),
+         sctcr_category2 = factor(sctcr_category2, levels = c("Existing", "Post-Nivolumab", "Post-Vaccine", "Reactive")),
+         sctcr_category3 = factor(sctcr_category3, levels = c("Existing", "Post-Nivolumab", "Post-Vaccine", "Tested, non-reactive", "Reactive")),
+         vjaa = forcats::fct_reorder(as.factor(vjaa), rank(sctcr_category)),
+         Timepoint = str_split_i(Timepoint, "_", 3))
+  # mutate(Freq = case_when(Freq == 0 ~ NA,
+  #                         Freq > 0 ~ Freq))
+```
+
+
+## Summarize number of clones per category
+```{r}
+tils_long %>%
+  distinct(patient, vjaa, sctcr_category) %>%
+  dplyr::count(patient, sctcr_category) %>%
+  pivot_wider(names_from = c("patient"), values_from = "n")
+
+tils_long %>%
+  distinct(patient, vjaa, sctcr_category2) %>%
+  dplyr::count(patient, sctcr_category2) %>%
+  pivot_wider(names_from = c("patient"), values_from = "n")
+
+tils_long %>%
+  distinct(patient, vjaa, sctcr_category3) %>%
+  dplyr::count(patient, sctcr_category3) %>%
+  pivot_wider(names_from = c("patient"), values_from = "n")
+```
+
+## Create a pie chart of number of clones per category
+```{r}
+pie <- tils_long %>%
+  distinct(patient, vjaa, sctcr_category) %>%
+  dplyr::count(patient, sctcr_category) %>%
+  ggplot(aes(x="", y=n, fill=sctcr_category)) +
+  facet_wrap(~patient, ncol = 2, scales = "free") +
+  geom_bar(stat="identity", width=1, color = "black", size = 1) +
+  coord_polar("y", start=0) +
+  theme_void() +
+  labs(fill = "TCR type") +
+  scale_fill_manual(values = c("grey80", "darkgoldenrod2", "deepskyblue3")) +
+  theme(strip.text = element_text(size = 20)) +
+  geom_text(aes(label = n),
+            position = position_stack(vjust = 0.5), 
+            size=4, 
+            color = "black", 
+            fontface = "bold")
+
+pie
+```
+
+## Frequency plot for Fig 4G
+```{r}
+# Line graphs
+p101_line <- tils_long %>%
+  filter(patient == "P101") %>%
+  ggplot(aes(x = Timepoint, y = Freq, color = sctcr_category, group = vjaa)) +
+  geom_line(position = position_jitter(width = 0, height = 0.1, seed = 123), size = 0.35) +
+            # , aes(size = sctcr_category2)) +
+  facet_wrap(~patient, scale = "free_x") +
+  theme_classic() +
+  scale_color_manual(values = c("grey80", "darkgoldenrod2", "deepskyblue3")) +
+  theme(axis.text.x = element_text(face ="bold", size = 12), 
+        strip.text = element_text(face="bold", size=12),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14)) +
+  scale_y_log10(labels = scales::comma) +
+  labs(color = "TCR type") +
+  ylab("log10 Clonotype Frequency (jittered)") +
+  annotation_logticks(sides = "l", scaled = TRUE, linewidth = 0.2)
+  # coord_cartesian(ylim = c(0.0003, 0.1), expand = TRUE)
+
+p103_line <- tils_long %>%
+  filter(patient == "P103") %>%
+  ggplot(aes(x = Timepoint, y = Freq, color = sctcr_category, group = vjaa)) +
+  geom_line(position = position_jitter(width = 0, height = 0.1, seed = 123), size = 0.35) +
+            # , aes(size = sctcr_category2)) +
+  facet_wrap(~patient, scale = "free_x") +
+  theme_classic() +
+  scale_color_manual(values = c("grey80", "darkgoldenrod2", "deepskyblue3")) +
+  labs(color = "TCR type") +
+  ylab("log10 Clonotype Frequency (jittered)") +
+  theme(axis.text.x = element_text(face ="bold", size = 12), 
+        strip.text = element_text(face="bold", size=12),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14)) +
+  scale_y_log10(labels = scales::comma, , breaks = NULL)
+  # coord_cartesian(ylim = c(0.0003, 0.1), expand = TRUE)
+
+(p101_line + p103_line) +
+  plot_layout(guides = "collect", 
+              axis_titles = "collect") & theme(legend.position = "right", 
+                                               legend.title=element_text(size=15),
+                                               legend.text = element_text(size = 15))
+
+
+(p101_line + p103_line) +
+  plot_layout(guides = "collect", 
+              axis_titles = "collect") & theme(legend.position = "right", 
+                                               legend.title=element_text(size=15),
+                                               legend.text = element_text(size = 15))
+
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
+

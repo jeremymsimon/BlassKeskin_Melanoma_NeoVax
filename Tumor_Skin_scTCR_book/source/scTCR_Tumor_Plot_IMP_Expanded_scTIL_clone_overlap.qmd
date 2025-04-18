@@ -1,0 +1,246 @@
+# scTCRseq: Plot IMP expanded and scTIL beta chain overlap {sec-sctcr-imp-expanded-venn-diagram}
+
+## Set up workspace
+```{r}
+# Libraries
+library(tidyverse)
+library(Seurat)
+library(dplyr)
+library(scRepertoire)
+library(ggvenn)
+```
+
+## Open mapping of single cell clonotypes to separated alpha and beta chains from scTCR data (regardless of scRNA)
+```{r}
+sc_bulk_mapping <- read.csv("scTCR_bulkTCR_chain_mapping_Part4.csv")
+```
+
+## Load categories
+```{r}
+p101_til_categories <- read.csv("sctcr_scRep_p101_til_freq_Part2.csv") %>%
+  mutate(Patient = "P101")
+p103_til_categories <- read.csv("sctcr_scRep_p103_til_freq_Part2.csv") %>%
+  mutate(Patient = "P103")
+
+til_categories <- rbind(p101_til_categories[,c("Patient", "vjaa", "sctcr_category")], p103_til_categories[,c("Patient", "vjaa", "sctcr_category")])
+```
+
+## Join categories
+```{r}
+sc_bulk_mapping <- sc_bulk_mapping %>%
+  left_join(til_categories) %>%
+  filter(tumor_vjaa_counts > 0)
+
+sc_bulk_mapping %>%
+  group_by(Patient, sctcr_category) %>%
+  dplyr::count()
+```
+
+## Load IMP expanded clones
+```{r}
+p101_betas_expanded <- read.csv("p101_betas_merged_typed_imp_expanded_Part3.csv") %>%
+  mutate(Beta_clonotype_Pt = paste0(Patient, "_", Beta_clonotype)) %>%
+  dplyr::rename("bulk_Type" = "Type")
+p103_betas_expanded <- read.csv("p103_betas_merged_typed_imp_expanded_Part3.csv") %>%
+  mutate(Beta_clonotype_Pt = paste0(Patient, "_", Beta_clonotype)) %>%
+  dplyr::rename("bulk_Type" = "Type")
+```
+
+## Count all IMP expanded beta chains in bulk
+```{r}
+imp_expanded_betas_bulk <- rbind(p101_betas_expanded[,c("Patient", "Beta_clonotype_Pt", "bulk_Type")], p103_betas_expanded[,c("Patient", "Beta_clonotype_Pt", "bulk_Type")])
+
+imp_expanded_betas_bulk_count <- imp_expanded_betas_bulk %>%
+  dplyr::count(Patient) %>%
+  dplyr::rename("Total_IMPExpanded_Betas_Bulk" = "n")
+
+```
+
+## Count unique beta chains in single cell TILs per timepoint
+```{r}
+sctils_betas <- sc_bulk_mapping %>%
+  filter(str_detect(bulk_chain, "TRB"),
+         Patient %in% c("P101", "P103", "P104", "P108"),
+         tumor_vjaa_counts > 0) %>%
+  mutate(Beta_clonotype_Pt = paste0(Patient, "_", bulk_chain))
+
+w00_sctils_betas <- sctils_betas %>%
+  filter(sctcr_category == "Existing")
+
+w12_sctils_betas <- sctils_betas %>%
+  filter(sctcr_category == "Post-Nivolumab")
+
+w20_sctils_betas <- sctils_betas %>%
+  filter(sctcr_category == "Post-Vaccine")
+
+sctils_betas_count <- sctils_betas %>%
+  dplyr::count(Patient) %>%
+  dplyr::rename("Total_Betas_scTILs" = "n")
+
+w00_sctils_betas_count <- w00_sctils_betas %>%
+  distinct(Patient, Beta_clonotype_Pt) %>%
+  dplyr::count(Patient) %>%
+  dplyr::rename("W00_Total_Betas_scTILs" = "n")
+
+w12_sctils_betas_count <- w12_sctils_betas %>%
+  distinct(Patient, Beta_clonotype_Pt) %>%
+  dplyr::count(Patient) %>%
+  dplyr::rename("W12_Total_Betas_scTILs" = "n")
+
+w20_sctils_betas_count <- w20_sctils_betas %>%
+  distinct(Patient, Beta_clonotype_Pt) %>%
+  dplyr::count(Patient) %>%
+  dplyr::rename("W20_Total_Betas_scTILs" = "n")
+```
+
+## Count IMP-expanded beta chains in common with scTIL beta chains per timepoint
+```{r}
+imp_expanded_common_betas <- inner_join(imp_expanded_betas_bulk, sctils_betas, by = c("Patient", "Beta_clonotype_Pt"))
+
+imp_expanded_common_betas_count <- imp_expanded_common_betas %>%
+  dplyr::count(Patient) %>%
+  dplyr::rename("Common betas" = "n")
+
+w00_common_betas <- inner_join(imp_expanded_betas_bulk, w00_sctils_betas, by = c("Patient", "Beta_clonotype_Pt"))
+
+w00_common_betas_count <- w00_common_betas %>%
+  distinct(Patient, Beta_clonotype_Pt) %>%
+  dplyr::count(Patient) %>%
+  dplyr::rename("Common betas" = "n")
+
+w00_common_betas <- inner_join(imp_expanded_betas_bulk, w00_sctils_betas, by = c("Patient", "Beta_clonotype_Pt"))
+
+w00_common_betas_count <- w00_common_betas %>%
+  distinct(Patient, Beta_clonotype_Pt) %>%
+  dplyr::count(Patient) %>%
+  dplyr::rename("Common betas" = "n")
+
+w12_common_betas <- inner_join(imp_expanded_betas_bulk, w12_sctils_betas, by = c("Patient", "Beta_clonotype_Pt"))
+
+w12_common_betas_count <- w12_common_betas %>%
+  distinct(Patient, Beta_clonotype_Pt) %>%
+  dplyr::count(Patient) %>%
+  dplyr::rename("Common betas" = "n")
+
+w20_common_betas <- inner_join(imp_expanded_betas_bulk, w20_sctils_betas, by = c("Patient", "Beta_clonotype_Pt"))
+
+w20_common_betas_count <- w20_common_betas %>%
+  distinct(Patient, Beta_clonotype_Pt) %>%
+  dplyr::count(Patient) %>%
+  dplyr::rename("Common betas" = "n")
+```
+
+## Plot a venn diagram of IMP-expanded beta chains and scTIL beta chains per timepoint for Fig S8A
+```{r, fig.width = 6, fig.height = 3}
+# W00
+w00_betas_overlap_df <- imp_expanded_betas_bulk_count %>%
+  full_join(w00_sctils_betas_count) %>%
+  full_join(w00_common_betas_count) %>%
+  replace(is.na(.), 0) %>%
+  rowwise() %>%
+  mutate(`IMP expanded PBMC betas` = Total_IMPExpanded_Betas_Bulk-`Common betas`,
+         `W00 scTIL betas` = W00_Total_Betas_scTILs-`Common betas`) %>%
+  ungroup() 
+
+# W12
+w12_betas_overlap_df <- imp_expanded_betas_bulk_count %>%
+  full_join(w12_sctils_betas_count) %>%
+  full_join(w12_common_betas_count) %>%
+  rowwise() %>%
+  mutate(`IMP expanded PBMC betas` = Total_IMPExpanded_Betas_Bulk-`Common betas`,
+         `W12 scTIL betas` = W12_Total_Betas_scTILs-`Common betas`) %>%
+  ungroup() 
+
+# W20
+w20_betas_overlap_df <- imp_expanded_betas_bulk_count %>%
+  full_join(w20_sctils_betas_count) %>%
+  full_join(w20_common_betas_count) %>%
+  rowwise() %>%
+  mutate(`IMP expanded PBMC betas` = Total_IMPExpanded_Betas_Bulk-`Common betas`,
+         `W20 scTIL betas` = W20_Total_Betas_scTILs-`Common betas`) %>%
+  ungroup() 
+
+
+w00_betas_overlap_formatted <- w00_betas_overlap_df %>%
+  select(`IMP expanded PBMC betas`, `W00 scTIL betas`, `Common betas`, Patient) %>%
+  pivot_longer(cols = c("IMP expanded PBMC betas", "W00 scTIL betas", "Common betas"), names_to = "Type", values_to = "n") %>%
+  group_by(Patient) %>%
+  mutate(Pt_sum = sum(n),
+         percent = round(n/Pt_sum*100, 1),
+         pct_label = case_when(Type == "IMP expanded PBMC betas" ~ paste0(percent, "%\n (", n, " clones)"),
+                               Type == "W00 scTIL betas" ~ paste0(percent, "% (", n, " clones)"),
+                               Type == "Common betas" ~ paste0(percent, "% (", n, " clones)"))) %>%
+  ungroup() %>%
+  mutate(Type = factor(Type, levels = c("IMP expanded PBMC betas", "Common betas", "W00 scTIL betas")),
+         Patient = factor(Patient, levels = c("P108", "P104", "P103", "P101")))
+
+w12_betas_overlap_formatted <- w12_betas_overlap_df %>%
+  select(`IMP expanded PBMC betas`, `W12 scTIL betas`, `Common betas`, Patient) %>%
+  pivot_longer(cols = c("IMP expanded PBMC betas", "W12 scTIL betas", "Common betas"), names_to = "Type", values_to = "n") %>%
+  group_by(Patient) %>%
+  mutate(Pt_sum = sum(n),
+         percent = round(n/Pt_sum*100, 1),
+         pct_label = case_when(Type == "IMP expanded PBMC betas" ~ paste0(percent, "%\n (", n, " clones)"),
+                               Type == "W12 scTIL betas" ~ paste0(percent, "% (", n, " clones)"),
+                               Type == "Common betas" ~ paste0(percent, "% (", n, " clones)"))) %>%
+  ungroup() %>%
+  mutate(Type = factor(Type, levels = c("IMP expanded PBMC betas", "Common betas", "W12 scTIL betas")),
+         Patient = factor(Patient, levels = c("P108", "P104", "P103", "P101")))
+
+w20_betas_overlap_formatted <- w20_betas_overlap_df %>%
+  select(`IMP expanded PBMC betas`, `W20 scTIL betas`, `Common betas`, Patient) %>%
+  pivot_longer(cols = c("IMP expanded PBMC betas", "W20 scTIL betas", "Common betas"), names_to = "Type", values_to = "n") %>%
+  group_by(Patient) %>%
+  mutate(Pt_sum = sum(n),
+         percent = round(n/Pt_sum*100, 1),
+         pct_label = case_when(Type == "IMP expanded PBMC betas" ~ paste0(percent, "%\n (", n, " clones)"),
+                               Type == "W20 scTIL betas" ~ paste0(percent, "% (", n, " clones)"),
+                               Type == "Common betas" ~ paste0(percent, "% (", n, " clones)"))) %>%
+  ungroup() %>%
+  mutate(Type = factor(Type, levels = c("IMP expanded PBMC betas", "Common betas", "W20 scTIL betas")),
+         Patient = factor(Patient, levels = c("P108", "P104", "P103", "P101")))
+
+w00_plot <- ggplot(w00_betas_overlap_formatted, aes(y = Patient, x = n, fill = Type)) +
+  geom_col(position = "fill", width=0.5) +
+  geom_text(aes(label = ifelse(Type == "Common betas", pct_label, "")), position = position_fill(vjust = 0.8), vjust = -2.5, size = 3) +
+  geom_text(aes(label = ifelse(Type != "Common betas", pct_label, "")), position = position_fill(vjust = 0.5), size = 3) +
+  theme_void() +
+  theme(axis.text.y = element_text(size = 10, vjust = 1),
+        plot.margin = margin(1, 1, 1, 1, "cm"),
+        legend.position="bottom") +
+  scale_fill_manual(values = c("grey", "darkblue", "beige")) +
+  ggtitle("W00")
+
+w12_plot <- ggplot(w12_betas_overlap_formatted, aes(y = Patient, x = n, fill = Type)) +
+  geom_col(position = "fill", width=0.5) +
+  geom_text(aes(label = ifelse(Type == "Common betas", pct_label, "")), position = position_fill(vjust = 0.8), vjust = -2.5, size = 3) +
+  geom_text(aes(label = ifelse(Type != "Common betas", pct_label, "")), position = position_fill(vjust = 0.5), size = 3) +
+  theme_void() +
+  theme(axis.text.y = element_text(size = 10, vjust = 1),
+        plot.margin = margin(1, 1, 1, 1, "cm"),
+        legend.position="bottom") +
+  scale_fill_manual(values = c("grey", "darkblue", "beige")) +
+  ggtitle("W12")
+
+w20_plot <- ggplot(w20_betas_overlap_formatted, aes(y = Patient, x = n, fill = Type)) +
+  geom_col(position = "fill", width=0.5) +
+  geom_text(aes(label = ifelse(Type == "Common betas", pct_label, "")), position = position_fill(vjust = 0.8), vjust = -2.5, size = 3) +
+  geom_text(aes(label = ifelse(Type != "Common betas", pct_label, "")), position = position_fill(vjust = 0.5), size = 3) +
+  theme_void() +
+  theme(axis.text.y = element_text(size = 10, vjust = 1),
+        plot.margin = margin(1, 1, 1, 1, "cm"),
+        legend.position="bottom") +
+  scale_fill_manual(values = c("grey", "darkblue", "beige")) +
+  ggtitle("W20")
+
+w00_plot
+w12_plot
+w20_plot
+
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
+

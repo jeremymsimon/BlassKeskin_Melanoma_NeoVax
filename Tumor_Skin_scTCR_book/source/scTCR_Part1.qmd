@@ -1,0 +1,162 @@
+# scTCRseq: Compile and format data {sec-sctcr-compile-and-format-data}
+
+Some scRNA and scTCR tumor timepoints were relabelled after this analysis was conducted. These are the corrected timepoints:
+101: W20 -> W24
+103: W20 -> W25
+
+## Set up workspace 
+```{r}
+# Load libraries
+library(tidyverse)
+library(Seurat)
+library(dplyr)
+library(scRepertoire)
+```
+
+Functions to create the custom definition of clones
+```{r}
+# Turn all entries of c_gene into ""
+to_empty <- function(df){
+  df$c_gene <- ""
+  return(df)
+}
+
+# Count number of TRA and TRB per barcode
+count_TRA_TRB <- function(df){
+  df <- df %>%
+    mutate(TCR1_count = str_count(TCR1, fixed(";")) + 1,
+           TCR2_count = str_count(TCR2, fixed(";")) + 1,
+           TCR1_count = replace_na(TCR1_count, 0),
+           TCR2_count = replace_na(TCR2_count, 0))
+}
+
+# Remove the barcode if it has 2A+2B or 3A/XB or XA/3B
+remove_multi_chains <- function(df){
+  df <- df %>%
+    # 2A+2B
+    filter(!(TCR1_count == 2 & TCR2_count == 2),
+           !(TCR1_count >= 3),
+           !(TCR2_count >= 3))
+}
+
+# Remove "NA" if it was supposed to be the "C" gene in TRA
+rm_na_TCR1 <- function(df){
+  df <- df %>%
+    mutate(TCR1 = str_replace_all(TCR1, "(\\.NA(?=;))|(\\.NA$)", ""))
+  return(df)
+}
+
+# Remove "NA" if it was supposed to be the "C" or "D" gene in TRB (D gene is not seen in bulkTCR data anyway)
+rm_na_TCR2 <- function(df){
+  df <- df %>%
+    mutate(TCR2 = str_replace_all(TCR2, "(\\.NA(?=;))|(\\.NA(?=.))|(\\.NA$)", ""))
+  return(df)
+}
+
+
+# Create new columns: CTVJaa, CTbeta, CTalpha
+create_columns <- function(df){
+  df <- df %>%
+    mutate(vjaa = paste0(TCR1, ";", cdr3_aa1, "_", TCR2, ";", cdr3_aa2),
+           alpha = paste0(TCR1, ";", cdr3_aa1),
+           beta = paste0(TCR2, ";", cdr3_aa2))
+}
+
+```
+
+
+## Load scTCR clones
+```{r}
+P101_Skin_Post3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P101_Skin_Post3rd_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P101_Skin_Pre3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P101_Skin_Pre3rd_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P101_Tumor_W00 <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P101_Tumor_W00_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P101_Tumor_W12 <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P101_Tumor_W12_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P101_Tumor_W20 <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P101_Tumor_W20_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P103_Skin_Post3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P103_Skin_Post3rd_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P103_Skin_Pre3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P103_Skin_Pre3rd_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P103_Tumor_W00 <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P103_Tumor_W00_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P103_Tumor_W12 <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P103_Tumor_W12_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P103_Tumor_W20 <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P103_Tumor_W20_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P104_Skin_Post3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P104_Skin_Post3rd_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P104_Skin_Pre3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P104_Skin_Pre3rd_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P104_Tumor_PD <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P104_Tumor_PD_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P105_Skin_Post3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P105_Skin_Post3rd_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P105_Skin_Pre3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P105_Skin_Pre3rd_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P106_Skin_Post3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P106_Skin_Post3rd_2-5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P106_Skin_Pre3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P106_Skin_Pre3rd_2-5mgIpi_TCR_fixed021324_cellranger/outs/filtered_contig_annotations.csv")
+P108_Skin_Post3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P108_Skin_Post3rd_5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P108_Skin_Pre3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P108_Skin_Pre3rd_5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P108_Tumor_PD <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P108_Tumor_PD_5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P109_Skin_Pre3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P109_Skin_Pre3rd_5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P110_Skin_Post3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P110_Skin_Post3rd_5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P110_Skin_Pre3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P110_Skin_Pre3rd_5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P111_Skin_Post3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P111_Skin_Post3rd_5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+P111_Skin_Pre3rd <- read.csv("/jsimonlab/projects/Wu/Melanoma_scTCR_Eryn/melanoma_sctcr_reprocessed_040224/P111_Skin_Pre3rd_5mgIpi_TCR_cellranger/outs/filtered_contig_annotations.csv")
+```
+
+
+## Combine TCRs and define clones using the V + J gene + cdr3AA
+```{r}
+contig_list <- list(P101_Skin_Post3rd, P101_Skin_Pre3rd, P101_Tumor_W00, P101_Tumor_W12, P101_Tumor_W20, P103_Skin_Post3rd, P103_Skin_Pre3rd, P103_Tumor_W00, P103_Tumor_W12, P103_Tumor_W20, P104_Skin_Post3rd, P104_Skin_Pre3rd, P104_Tumor_PD, P105_Skin_Post3rd, P105_Skin_Pre3rd, P106_Skin_Post3rd, P106_Skin_Pre3rd, P108_Skin_Post3rd, P108_Skin_Pre3rd, P108_Tumor_PD, P109_Skin_Pre3rd, P110_Skin_Post3rd, P110_Skin_Pre3rd, P111_Skin_Post3rd, P111_Skin_Pre3rd)
+sample_list <- c("P101_Skin_Post3rd", "P101_Skin_Pre3rd", "P101_Tumor_W00", "P101_Tumor_W12", "P101_Tumor_W20", "P103_Skin_Post3rd", "P103_Skin_Pre3rd", "P103_Tumor_W00", "P103_Tumor_W12", "P103_Tumor_W20", "P104_Skin_Post3rd", "P104_Skin_Pre3rd", "P104_Tumor_PD", "P105_Skin_Post3rd", "P105_Skin_Pre3rd", "P106_Skin_Post3rd", "P106_Skin_Pre3rd", "P108_Skin_Post3rd", "P108_Skin_Pre3rd", "P108_Tumor_PD", "P109_Skin_Pre3rd", "P110_Skin_Post3rd", "P110_Skin_Pre3rd", "P111_Skin_Post3rd", "P111_Skin_Pre3rd")
+
+# Create a new column with the combination of the amino acid sequence and gene sequence, without the C gene. ie: VJcdr3AA
+
+contig_list <- lapply(contig_list, to_empty)
+
+combined_TCR <- combineTCR(contig_list, 
+                           samples = sample_list,
+                           removeNA = FALSE, 
+                           removeMulti = FALSE, 
+                           filterMulti = FALSE)
+
+# Apply counts and filter
+combined_TCR <- lapply(combined_TCR, count_TRA_TRB)
+
+# Supplementary table creation
+# Count the number of clones that have less than 2A/2B or 3A/B
+suppTable <- do.call(rbind, combined_TCR)
+
+suppTable %>%
+  group_by(sample) %>%
+    mutate(to_remove = case_when((TCR1_count == 2 & TCR2_count == 2) ~ "MultiChain",
+                                 (TCR1_count >= 3) ~ "MultiChain",
+                                 (TCR2_count >= 3) ~ "MultiChain",
+                                 T ~ "SingleChain")) %>%
+  dplyr::count(to_remove) %>%
+  pivot_wider(names_from = "to_remove", values_from = "n")
+
+combined_TCR <- lapply(combined_TCR, remove_multi_chains)
+
+# Apply removals
+combined_TCR <- lapply(combined_TCR, rm_na_TCR1)
+combined_TCR <- lapply(combined_TCR, rm_na_TCR2)
+
+# Apply new columns
+combined_TCR <- lapply(combined_TCR, create_columns)
+
+```
+
+## Add metadata
+```{r}
+combined_TCR <- addVariable(combined_TCR, 
+                            variable.name = "Patient", 
+                            variables = str_replace_all(sample_list,"_.+",""))
+combined_TCR <- addVariable(combined_TCR, 
+                            variable.name = "Site", 
+                            variables = str_replace_all(sample_list,".+_(.+)_.+","\\1"))
+combined_TCR <- addVariable(combined_TCR, 
+                            variable.name = "Timepoint", 
+                            variables = str_replace_all(sample_list,".+_",""))
+```
+
+## Save data with my custom definition of clones in the "vjaa" column
+```{r}
+saveRDS(combined_TCR, "sctcr_scRep_combined_TCR_skin_tumor_Part1.Rds")
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
+
