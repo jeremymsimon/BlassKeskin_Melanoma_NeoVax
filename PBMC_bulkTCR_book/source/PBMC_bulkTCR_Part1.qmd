@@ -1,0 +1,1169 @@
+# PBMCs: Compile & Format Data {#sec-pbmc-compile-format-data}
+
+Some longitudinal PBMC timepoints were relabelled after this analysis was conducted. These are the corrected timepoints:
+P106: W48 -> W49
+P109: W48 -> W49
+P110: W38 -> W48
+P111: W40 -> W41
+
+These timepoints are synonyms:
+Pre-vaccine <-> Post-nivolumab
+
+## Set up workspace
+
+```{r}
+# Libraries
+library(dplyr)
+library(tidyverse)
+```
+
+## Set pseudo count for in vitro samples
+Set a pseudo count to allow for *in vitro* fold change calculations of undetected clones
+The appropriate value was explored in file "Test_pseudocount_frequency.Rmd" and the slides titled "Testing pseudocounts in calculating fold change"
+
+```{r}
+pseudo_freq <- 0.001
+```
+
+## Open TCR reactivity data
+
+```{r}
+reactivity <- read.csv("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/Eryn_reactivity_results/reformatted_reconstructed_TCR_072324.csv") %>%
+  mutate(Beta_clonotype = paste0(TRBV_1, ";", TRBJ_1, ";", CDR3B_1)) %>%
+  select(Beta_clonotype, Patient, Reactive) %>%
+  filter(Reactive == "Yes")
+
+reactivity %>%
+  dplyr::count(Patient)
+```
+
+## Compile P101's data
+Load longitudinal frequencies
+```{r}
+# Control == pretreatment
+p101_pretreatment_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/101pre-treament_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+# Post-Nivo == prevax
+p101_prevax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/101pre-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+# Post-vaccine
+p101_postvax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/101post-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p101_betas_pbmc <- p101_pretreatment_beta %>%
+  full_join(p101_prevax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p101_pretreatment" = "Freq.x",
+                "p101_prevax" = "Freq.y",
+                "p101_pretreatment_umi" = "totalUMICount.x",
+                "p101_prevax_umi" = "totalUMICount.y") %>%
+  full_join(p101_postvax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p101_postvax" = "Freq",
+                "p101_postvax_umi" = "totalUMICount") %>%
+  select("v_hit", "j_hit", "cdr3", "p101_pretreatment", "p101_pretreatment_umi", 
+         "p101_prevax", "p101_prevax_umi", "p101_postvax", "p101_postvax_umi") %>%
+  mutate_at(c("p101_pretreatment", "p101_prevax", "p101_postvax"), as.numeric) %>% 
+  unite("Beta_clonotype", c(v_hit, j_hit, cdr3), sep = ";")
+  
+
+dim(p101_betas_pbmc)
+```
+
+Calculate fold changes across longitudinal timepoints
+```{r}
+p101_betas_pbmc <- p101_betas_pbmc %>%
+  mutate(postvax_vs_prevax_fc = p101_postvax/p101_prevax,
+         prevax_vs_pretreatment_fc = p101_prevax/p101_pretreatment,
+         log2fc_postvax_vs_prevax = log2(postvax_vs_prevax_fc),
+         log2fc_prevax_vs_pretreatment = log2(prevax_vs_pretreatment_fc))
+```
+
+Load in vitro frequencies
+```{r}
+p101DMSO_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/101-DMSO_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p101poolA_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/101-PoolA_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p101poolB_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/101-PoolB_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p101_betas_invitro <- full_join(p101DMSO_beta,p101poolA_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p101_DMSO_beta" = Freq.x, 
+                  "p101_DMSO_umi" = totalUMICount.x, 
+                  "p101_poolA_beta" = Freq.y,
+                  "p101_poolA_umi" = totalUMICount.y) %>%
+    full_join(p101poolB_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p101_poolB_beta" = Freq,
+                  "p101_poolB_umi" = totalUMICount)
+
+p101_betas_invitro %>% distinct(Beta_clonotype) %>% dplyr::count()
+```
+
+Convert to decimal frequency to %
+```{r}
+p101_betas_pbmc <- p101_betas_pbmc %>%
+  mutate(p101_pretreatment = p101_pretreatment * 100,
+         p101_postvax = p101_postvax * 100,
+         p101_prevax = p101_prevax * 100)
+
+p101_betas_invitro <- p101_betas_invitro %>%
+  mutate(p101_DMSO_beta = p101_DMSO_beta * 100,
+         p101_poolA_beta = p101_poolA_beta * 100,
+         p101_poolB_beta = p101_poolB_beta * 100)
+```
+
+Join longitudinal and in vitro frequencies by beta chain
+```{r}
+p101_betas <- full_join(p101_betas_pbmc, p101_betas_invitro)
+```
+
+Calculate fold changes across in vitro samples
+```{r}
+p101_betas <- p101_betas %>%
+  rowwise() %>%
+  mutate(poolA_vs_dmso_fc = sum(c(p101_poolA_beta, pseudo_freq), na.rm = TRUE)/sum(c(p101_DMSO_beta, pseudo_freq), na.rm = TRUE),
+         poolB_vs_dmso_fc = sum(c(p101_poolB_beta, pseudo_freq), na.rm = TRUE)/sum(c(p101_DMSO_beta, pseudo_freq), na.rm = TRUE)) %>%
+         ungroup() %>%
+  mutate(log2fc_poolA_vs_dmso = log2(poolA_vs_dmso_fc),
+         log2fc_poolB_vs_dmso = log2(poolB_vs_dmso_fc),
+         max_log2fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ log2fc_poolA_vs_dmso,
+                                             log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ log2fc_poolB_vs_dmso),
+         max_fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ poolA_vs_dmso_fc,
+                                         log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ poolB_vs_dmso_fc))
+```
+
+Attach TCR reactivities to dataframe via the beta clonotype
+```{r}
+p101_reactive <- reactivity %>%
+  filter(Patient == "101")
+
+p101_betas <- p101_betas %>%
+  mutate(Reactive = case_when(Beta_clonotype %in% p101_reactive$Beta_clonotype ~ TRUE,
+                              !(Beta_clonotype %in% p101_reactive$Beta_clonotype) ~ FALSE))
+```
+
+Save data
+```{r}
+write.csv(p101_betas, "p101_betas_merged_Part1.csv", row.names = FALSE)
+```
+
+## Compile P103's data
+Load longitudinal frequencies
+```{r}
+p103_pretreatment_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/103pre-treatment_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p103_prevax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/103pre-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p103_postvax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/103post-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p103_w48_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/103wk48_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") 
+
+p103_w72_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/103wk72_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p103_betas_pbmc <- p103_pretreatment_beta %>%
+  full_join(p103_prevax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p103_pretreatment" = "Freq.x",
+                "p103_prevax" = "Freq.y",
+                "p103_pretreatment_umi" = "totalUMICount.x",
+                "p103_prevax_umi" = "totalUMICount.y") %>%
+  full_join(p103_postvax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p103_postvax" = "Freq",
+                "p103_postvax_umi" = "totalUMICount") %>% 
+  full_join(p103_w48_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p103_w48" = "Freq",
+                "p103_w48_umi" = "totalUMICount") %>% 
+  full_join(p103_w72_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p103_w72" = "Freq",
+                "p103_w72_umi" = "totalUMICount") %>% 
+  select("v_hit", "j_hit", "cdr3", "p103_pretreatment", "p103_pretreatment_umi", "p103_prevax", "p103_prevax_umi", "p103_postvax", "p103_postvax_umi", "p103_w48", "p103_w48_umi", "p103_w72", "p103_w72_umi") %>%
+  mutate_at(c("p103_pretreatment", "p103_pretreatment_umi", "p103_prevax", "p103_prevax_umi", "p103_postvax", "p103_postvax_umi", "p103_w48", "p103_w48_umi", "p103_w72", "p103_w72_umi"), as.numeric) %>% 
+  unite("Beta_clonotype", c(v_hit, j_hit, cdr3), sep = ";")
+  
+
+dim(p103_betas_pbmc)
+```
+
+Calculate fold changes across longitudinal timepoints
+```{r}
+p103_betas_pbmc <- p103_betas_pbmc %>%
+  mutate(postvax_vs_prevax_fc = p103_postvax/p103_prevax,
+         prevax_vs_pretreatment_fc = p103_prevax/p103_pretreatment,
+         log2fc_postvax_vs_prevax = log2(postvax_vs_prevax_fc),
+         log2fc_prevax_vs_pretreatment = log2(prevax_vs_pretreatment_fc))
+```
+
+Load in vitro frequencies
+```{r}
+p103DMSO_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/103-DMSO_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p103poolA_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/103-PoolA_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p103poolB_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/103-PoolB_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p103_betas_invitro <- full_join(p103DMSO_beta,p103poolA_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p103_DMSO_beta" = Freq.x, 
+                  "p103_DMSO_umi" = totalUMICount.x, 
+                  "p103_poolA_beta" = Freq.y,
+                  "p103_poolA_umi" = totalUMICount.y) %>%
+    full_join(p103poolB_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p103_poolB_beta" = Freq,
+                  "p103_poolB_umi" = totalUMICount)
+
+p103_betas_invitro %>% distinct(Beta_clonotype) %>% dplyr::count()
+```
+
+Convert to decimal frequency to %
+```{r}
+p103_betas_pbmc <- p103_betas_pbmc %>%
+  mutate(p103_pretreatment = p103_pretreatment * 100,
+         p103_postvax = p103_postvax * 100,
+         p103_prevax = p103_prevax * 100,
+         p103_w48 = p103_w48 * 100,
+         p103_w72 = p103_w72 * 100)
+
+p103_betas_invitro <- p103_betas_invitro %>%
+  mutate(p103_DMSO_beta = p103_DMSO_beta * 100,
+         p103_poolA_beta = p103_poolA_beta * 100,
+         p103_poolB_beta = p103_poolB_beta * 100)
+```
+
+Join longitudinal and in vitro frequencies by beta chain
+```{r}
+p103_betas <- full_join(p103_betas_pbmc, p103_betas_invitro)
+```
+
+Calculate fold changes across in vitro samples
+```{r}
+p103_betas <- p103_betas %>%
+  rowwise() %>%
+  mutate(poolA_vs_dmso_fc = sum(c(p103_poolA_beta, pseudo_freq), na.rm = TRUE)/sum(c(p103_DMSO_beta, pseudo_freq), na.rm = TRUE),
+         poolB_vs_dmso_fc = sum(c(p103_poolB_beta, pseudo_freq), na.rm = TRUE)/sum(c(p103_DMSO_beta, pseudo_freq), na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(log2fc_poolA_vs_dmso = log2(poolA_vs_dmso_fc),
+         log2fc_poolB_vs_dmso = log2(poolB_vs_dmso_fc),
+         max_log2fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ log2fc_poolA_vs_dmso,
+                                             log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ log2fc_poolB_vs_dmso),
+         max_fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ poolA_vs_dmso_fc,
+                                         log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ poolB_vs_dmso_fc))
+```
+
+Attach TCR reactivities to dataframe via the beta clonotype
+```{r}
+p103_reactive <- reactivity %>%
+  filter(Patient == "103")
+
+p103_betas <- p103_betas %>%
+  mutate(Reactive = case_when(Beta_clonotype %in% p103_reactive$Beta_clonotype ~ TRUE,
+                              !(Beta_clonotype %in% p103_reactive$Beta_clonotype) ~ FALSE))
+```
+
+Save data
+```{r}
+write.csv(p103_betas, "p103_betas_merged_Part1.csv", row.names = FALSE)
+```
+
+## Compile P104's data
+Load longitudinal frequencies
+```{r}
+p104_pretreatment_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/104pre-treament_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p104_prevax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/104pre-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p104_postvax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/104post-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p104_w48_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/104wk48_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p104_betas_pbmc <- p104_pretreatment_beta %>%
+  full_join(p104_prevax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p104_pretreatment" = "Freq.x",
+                "p104_prevax" = "Freq.y",
+                "p104_pretreatment_umi" = "totalUMICount.x",
+                "p104_prevax_umi" = "totalUMICount.y") %>%
+  full_join(p104_postvax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p104_postvax" = "Freq",
+                "p104_postvax_umi" = "totalUMICount") %>% 
+  full_join(p104_w48_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p104_w48" = "Freq",
+                "p104_w48_umi" = "totalUMICount") %>% 
+  select("v_hit", "j_hit", "cdr3", "p104_pretreatment", "p104_pretreatment_umi", "p104_prevax", "p104_prevax_umi", "p104_postvax", "p104_postvax_umi", "p104_w48", "p104_w48_umi") %>%
+  mutate_at(c("p104_pretreatment", "p104_pretreatment_umi", "p104_prevax", "p104_prevax_umi", "p104_postvax", "p104_postvax_umi", "p104_w48", "p104_w48_umi"), as.numeric) %>% 
+  unite("Beta_clonotype", c(v_hit, j_hit, cdr3), sep = ";")
+
+dim(p104_betas_pbmc)
+```
+
+Calculate fold changes across longitudinal timepoints
+```{r}
+p104_betas_pbmc <- p104_betas_pbmc %>%
+  mutate(postvax_vs_prevax_fc = p104_postvax/p104_prevax,
+         prevax_vs_pretreatment_fc = p104_prevax/p104_pretreatment,
+         log2fc_postvax_vs_prevax = log2(postvax_vs_prevax_fc),
+         log2fc_prevax_vs_pretreatment = log2(prevax_vs_pretreatment_fc))
+```
+
+Load in vitro frequencies
+```{r}
+p104DMSO_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/104-DMSO_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p104poolA_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/104-PoolA_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p104poolB_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/104-PoolB_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p104_betas_invitro <- full_join(p104DMSO_beta,p104poolA_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p104_DMSO_beta" = Freq.x, 
+                  "p104_DMSO_umi" = totalUMICount.x, 
+                  "p104_poolA_beta" = Freq.y,
+                  "p104_poolA_umi" = totalUMICount.y) %>%
+    full_join(p104poolB_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p104_poolB_beta" = Freq,
+                  "p104_poolB_umi" = totalUMICount)
+
+p104_betas_invitro %>% distinct(Beta_clonotype) %>% dplyr::count()
+
+```
+
+Convert to decimal frequency to %
+```{r}
+p104_betas_pbmc <- p104_betas_pbmc %>%
+  mutate(p104_pretreatment = p104_pretreatment * 100,
+         p104_postvax = p104_postvax * 100,
+         p104_prevax = p104_prevax * 100,
+         p104_w48 = p104_w48 * 100)
+
+p104_betas_invitro <- p104_betas_invitro %>%
+  mutate(p104_DMSO_beta = p104_DMSO_beta * 100,
+         p104_poolA_beta = p104_poolA_beta * 100,
+         p104_poolB_beta = p104_poolB_beta * 100)
+```
+
+Join longitudinal and in vitro frequencies by beta chain
+```{r}
+p104_betas <- full_join(p104_betas_pbmc, p104_betas_invitro)
+```
+
+Calculate fold changes across in vitro samples
+```{r}
+p104_betas <- p104_betas %>%
+  rowwise() %>%
+  mutate(poolA_vs_dmso_fc = sum(c(p104_poolA_beta, pseudo_freq), na.rm = TRUE)/sum(c(p104_DMSO_beta, pseudo_freq), na.rm = TRUE),
+         poolB_vs_dmso_fc = sum(c(p104_poolB_beta, pseudo_freq), na.rm = TRUE)/sum(c(p104_DMSO_beta, pseudo_freq), na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(log2fc_poolA_vs_dmso = log2(poolA_vs_dmso_fc),
+         log2fc_poolB_vs_dmso = log2(poolB_vs_dmso_fc),
+         max_log2fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ log2fc_poolA_vs_dmso,
+                                             log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ log2fc_poolB_vs_dmso),
+         max_fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ poolA_vs_dmso_fc,
+                                         log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ poolB_vs_dmso_fc))
+```
+
+Attach TCR reactivities to dataframe via the beta clonotype
+```{r}
+p104_reactive <- reactivity %>%
+  filter(Patient == "104")
+
+p104_betas <- p104_betas %>%
+  mutate(Reactive = case_when(Beta_clonotype %in% p104_reactive$Beta_clonotype ~ TRUE,
+                              !(Beta_clonotype %in% p104_reactive$Beta_clonotype) ~ FALSE))
+```
+
+Save data
+```{r}
+write.csv(p104_betas, "p104_betas_merged_Part1.csv", row.names = FALSE)
+```
+
+## Compile P105's data
+Load longitudinal frequencies
+```{r}
+p105_pretreatment_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/105pre-treament_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p105_prevax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/105pre-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p105_postvax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/105post-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p105_W48_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/105wk48_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p105_betas_pbmc <- p105_pretreatment_beta %>%
+  full_join(p105_prevax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p105_pretreatment" = "Freq.x",
+                "p105_prevax" = "Freq.y",
+                "p105_pretreatment_umi" = "totalUMICount.x",
+                "p105_prevax_umi" = "totalUMICount.y") %>%
+  full_join(p105_postvax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p105_postvax" = "Freq",
+                "p105_postvax_umi" = "totalUMICount") %>% 
+  full_join(p105_W48_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p105_w48" = "Freq",
+                "p105_w48_umi" = "totalUMICount") %>%
+  select("v_hit", "j_hit", "cdr3", "p105_pretreatment", "p105_pretreatment_umi", "p105_prevax", "p105_prevax_umi", "p105_postvax", "p105_postvax_umi", "p105_w48", "p105_w48_umi") %>%
+  mutate_at(c("p105_pretreatment", "p105_pretreatment_umi", "p105_prevax", "p105_prevax_umi", "p105_postvax", "p105_postvax_umi", "p105_w48", "p105_w48_umi"), as.numeric) %>% 
+  unite("Beta_clonotype", c(v_hit, j_hit, cdr3), sep = ";")
+
+dim(p105_betas_pbmc)
+```
+
+Calculate fold changes across longitudinal timepoints
+```{r}
+p105_betas_pbmc <- p105_betas_pbmc %>%
+  mutate(postvax_vs_prevax_fc = p105_postvax/p105_prevax,
+         prevax_vs_pretreatment_fc = p105_prevax/p105_pretreatment,
+         log2fc_postvax_vs_prevax = log2(postvax_vs_prevax_fc),
+         log2fc_prevax_vs_pretreatment = log2(prevax_vs_pretreatment_fc))
+```
+
+Load in vitro frequencies
+```{r}
+p105DMSO_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/105-DMSO_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p105poolA_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/105-PoolA_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p105poolB_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/105-PoolB_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p105_betas_invitro <- full_join(p105DMSO_beta,p105poolA_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p105_DMSO_beta" = Freq.x, 
+                  "p105_DMSO_umi" = totalUMICount.x, 
+                  "p105_poolA_beta" = Freq.y,
+                  "p105_poolA_umi" = totalUMICount.y) %>%
+    full_join(p105poolB_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p105_poolB_beta" = Freq,
+                  "p105_poolB_umi" = totalUMICount)
+
+p105_betas_invitro %>% distinct(Beta_clonotype) %>% dplyr::count()
+```
+
+Convert to decimal frequency to %
+```{r}
+p105_betas_pbmc <- p105_betas_pbmc %>%
+  mutate(p105_pretreatment = p105_pretreatment * 100,
+         p105_postvax = p105_postvax * 100,
+         p105_prevax = p105_prevax * 100,
+         p105_w48 = p105_w48 * 100)
+
+p105_betas_invitro <- p105_betas_invitro %>%
+  mutate(p105_DMSO_beta = p105_DMSO_beta * 100,
+         p105_poolA_beta = p105_poolA_beta * 100,
+         p105_poolB_beta = p105_poolB_beta * 100)
+```
+
+Join longitudinal and in vitro frequencies by beta chain
+```{r}
+p105_betas <- full_join(p105_betas_pbmc, p105_betas_invitro)
+```
+
+Calculate fold changes across in vitro samples
+```{r}
+p105_betas <- p105_betas %>%
+  rowwise() %>%
+  mutate(poolA_vs_dmso_fc = sum(c(p105_poolA_beta, pseudo_freq), na.rm = TRUE)/sum(c(p105_DMSO_beta, pseudo_freq), na.rm = TRUE),
+         poolB_vs_dmso_fc = sum(c(p105_poolB_beta, pseudo_freq), na.rm = TRUE)/sum(c(p105_DMSO_beta, pseudo_freq), na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(log2fc_poolA_vs_dmso = log2(poolA_vs_dmso_fc),
+         log2fc_poolB_vs_dmso = log2(poolB_vs_dmso_fc),
+         max_log2fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ log2fc_poolA_vs_dmso,
+                                             log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ log2fc_poolB_vs_dmso),
+         max_fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ poolA_vs_dmso_fc,
+                                         log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ poolB_vs_dmso_fc))
+```
+
+Save data
+```{r}
+write.csv(p105_betas, "p105_betas_merged_Part1.csv", row.names = FALSE)
+```
+
+## Compile P106's data
+Load longitudinal frequencies
+```{r}
+p106_pretreatment_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/106pre-treament_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p106_prevax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/106pre-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p106_postvax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/106post-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p106_w48_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/106wk48_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p106_betas_pbmc <- p106_pretreatment_beta %>%
+  full_join(p106_prevax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p106_pretreatment" = "Freq.x",
+                "p106_prevax" = "Freq.y",
+                "p106_pretreatment_umi" = "totalUMICount.x",
+                "p106_prevax_umi" = "totalUMICount.y") %>%
+  full_join(p106_postvax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p106_postvax" = "Freq",
+                "p106_postvax_umi" = "totalUMICount") %>% 
+  full_join(p106_w48_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p106_w48" = "Freq",
+                "p106_w48_umi" = "totalUMICount") %>% 
+  select("v_hit", "j_hit", "cdr3", "p106_pretreatment", "p106_pretreatment_umi", "p106_prevax", "p106_prevax_umi", "p106_postvax", "p106_postvax_umi", "p106_w48", "p106_w48_umi") %>%
+  mutate_at(c("p106_pretreatment", "p106_pretreatment_umi", "p106_prevax", "p106_prevax_umi", "p106_postvax", "p106_postvax_umi", "p106_w48", "p106_w48_umi"), as.numeric) %>% 
+  unite("Beta_clonotype", c(v_hit, j_hit, cdr3), sep = ";")
+  
+
+dim(p106_betas_pbmc)
+```
+
+Calculate fold changes across longitudinal timepoints
+```{r}
+p106_betas_pbmc <- p106_betas_pbmc %>%
+  mutate(postvax_vs_prevax_fc = p106_postvax/p106_prevax,
+         prevax_vs_pretreatment_fc = p106_prevax/p106_pretreatment,
+         log2fc_postvax_vs_prevax = log2(postvax_vs_prevax_fc),
+         log2fc_prevax_vs_pretreatment = log2(prevax_vs_pretreatment_fc))
+```
+
+Load in vitro frequencies
+```{r}
+p106DMSO_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/106-DMSO_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p106poolA_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/106-PoolA_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p106poolB_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/106-PoolB_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p106_betas_invitro <- full_join(p106DMSO_beta,p106poolA_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p106_DMSO_beta" = Freq.x, 
+                  "p106_DMSO_umi" = totalUMICount.x, 
+                  "p106_poolA_beta" = Freq.y,
+                  "p106_poolA_umi" = totalUMICount.y) %>%
+    full_join(p106poolB_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p106_poolB_beta" = Freq,
+                  "p106_poolB_umi" = totalUMICount)
+
+p106_betas_invitro %>% distinct(Beta_clonotype) %>% dplyr::count()
+```
+
+Convert to decimal frequency to %
+```{r}
+p106_betas_pbmc <- p106_betas_pbmc %>%
+  mutate(p106_pretreatment = p106_pretreatment * 100,
+         p106_postvax = p106_postvax * 100,
+         p106_prevax = p106_prevax * 100,
+         p106_w48 = p106_w48 * 100)
+
+p106_betas_invitro <- p106_betas_invitro %>%
+  mutate(p106_DMSO_beta = p106_DMSO_beta * 100,
+         p106_poolA_beta = p106_poolA_beta * 100,
+         p106_poolB_beta = p106_poolB_beta * 100)
+```
+
+Join longitudinal and in vitro frequencies by beta chain
+```{r}
+p106_betas <- full_join(p106_betas_pbmc, p106_betas_invitro)
+```
+
+Calculate fold changes across in vitro samples
+```{r}
+p106_betas <- p106_betas %>%
+  rowwise() %>%
+  mutate(poolA_vs_dmso_fc = sum(c(p106_poolA_beta, pseudo_freq), na.rm = TRUE)/sum(c(p106_DMSO_beta, pseudo_freq), na.rm = TRUE),
+         poolB_vs_dmso_fc = sum(c(p106_poolB_beta, pseudo_freq), na.rm = TRUE)/sum(c(p106_DMSO_beta, pseudo_freq), na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(log2fc_poolA_vs_dmso = log2(poolA_vs_dmso_fc),
+         log2fc_poolB_vs_dmso = log2(poolB_vs_dmso_fc),
+         max_log2fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ log2fc_poolA_vs_dmso,
+                                             log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ log2fc_poolB_vs_dmso),
+         max_fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ poolA_vs_dmso_fc,
+                                         log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ poolB_vs_dmso_fc))
+```
+
+Save data
+```{r}
+write.csv(p106_betas, "p106_betas_merged_Part1.csv", row.names = FALSE)
+```
+
+## Compile P108's data
+Load longitudinal frequencies
+```{r}
+p108_pretreatment_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/108pre-treatment_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p108_prevax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/108pre-vaccine_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p108_postvax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/108post-vaccine_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p108_w32_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/108-Wk32d1_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p108_betas_pbmc <- p108_pretreatment_beta %>%
+  full_join(p108_prevax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p108_pretreatment" = "Freq.x",
+                "p108_prevax" = "Freq.y",
+                "p108_pretreatment_umi" = "totalUMICount.x",
+                "p108_prevax_umi" = "totalUMICount.y"
+                ) %>%
+  full_join(p108_postvax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p108_postvax" = "Freq",
+                "p108_postvax_umi" = "totalUMICount") %>% 
+  full_join(p108_w32_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p108_w32" = "Freq",
+                "p108_w32_umi" = "totalUMICount") %>% 
+  select("v_hit", "j_hit", "cdr3", "p108_pretreatment", "p108_pretreatment_umi", "p108_prevax", "p108_prevax_umi", "p108_postvax", "p108_postvax_umi", "p108_w32", "p108_w32_umi") %>%
+  mutate_at(c("p108_pretreatment", "p108_pretreatment_umi", "p108_prevax", "p108_prevax_umi", "p108_postvax", "p108_postvax_umi", "p108_w32", "p108_w32_umi"), as.numeric) %>% 
+  unite("Beta_clonotype", c(v_hit, j_hit, cdr3), sep = ";")
+
+  
+dim(p108_betas_pbmc)
+```
+
+Calculate fold changes across longitudinal timepoints
+```{r}
+p108_betas_pbmc <- p108_betas_pbmc %>%
+  mutate(postvax_vs_prevax_fc = p108_postvax/p108_prevax,
+         prevax_vs_pretreatment_fc = p108_prevax/p108_pretreatment,
+         log2fc_postvax_vs_prevax = log2(postvax_vs_prevax_fc),
+         log2fc_prevax_vs_pretreatment = log2(prevax_vs_pretreatment_fc))
+```
+
+Load in vitro frequencies
+```{r}
+p108DMSO_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/108-DMSO_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p108poolA_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/108-PoolA-B_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p108poolB_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/108-PoolB_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p108_betas_invitro <- full_join(p108DMSO_beta,p108poolA_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p108_DMSO_beta" = Freq.x,
+                  "p108_DMSO_umi" = totalUMICount.x, 
+                  "p108_poolA_beta" = Freq.y,
+                  "p108_poolA_umi" = totalUMICount.y) %>%
+    full_join(p108poolB_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p108_poolB_beta" = Freq,
+                  "p106_poolB_umi" = totalUMICount)
+
+p108_betas_invitro %>% distinct(Beta_clonotype) %>% dplyr::count()
+```
+
+Convert to decimal frequency to %
+```{r}
+p108_betas_pbmc <- p108_betas_pbmc %>%
+  mutate(p108_pretreatment = p108_pretreatment * 100,
+         p108_postvax = p108_postvax * 100,
+         p108_prevax = p108_prevax * 100,
+         p108_w32 = p108_w32 * 100)
+
+p108_betas_invitro <- p108_betas_invitro %>%
+  mutate(p108_DMSO_beta = p108_DMSO_beta * 100,
+         p108_poolA_beta = p108_poolA_beta * 100,
+         p108_poolB_beta = p108_poolB_beta * 100)
+```
+
+Join longitudinal and in vitro frequencies by beta chain
+```{r}
+p108_betas <- full_join(p108_betas_pbmc, p108_betas_invitro)
+```
+
+Calculate fold changes across in vitro samples
+```{r}
+p108_betas <- p108_betas %>%
+  rowwise() %>%
+  mutate(poolA_vs_dmso_fc = sum(c(p108_poolA_beta, pseudo_freq), na.rm = TRUE)/sum(c(p108_DMSO_beta, pseudo_freq), na.rm = TRUE),
+         poolB_vs_dmso_fc = sum(c(p108_poolB_beta, pseudo_freq), na.rm = TRUE)/sum(c(p108_DMSO_beta, pseudo_freq), na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(log2fc_poolA_vs_dmso = log2(poolA_vs_dmso_fc),
+         log2fc_poolB_vs_dmso = log2(poolB_vs_dmso_fc),
+         max_log2fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ log2fc_poolA_vs_dmso,
+                                             log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ log2fc_poolB_vs_dmso),
+         max_fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ poolA_vs_dmso_fc,
+                                         log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ poolB_vs_dmso_fc))
+```
+
+Attach TCR reactivities to dataframe via the beta clonotype
+```{r}
+p108_reactive <- reactivity %>%
+  filter(Patient == "108")
+
+p108_betas <- p108_betas %>%
+  mutate(Reactive = case_when(Beta_clonotype %in% p108_reactive$Beta_clonotype ~ TRUE,
+                              !(Beta_clonotype %in% p108_reactive$Beta_clonotype) ~ FALSE))
+```
+
+Save data
+```{r}
+write.csv(p108_betas, "p108_betas_merged_Part1.csv", row.names = FALSE)
+```
+
+## Compile P109's data
+Load longitudinal frequencies
+```{r}
+p109_pretreatment_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/109pre-treament_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p109_prevax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/109pre-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p109_postvax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/109post-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p109_w48_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/109wk48_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p109_betas_pbmc <- p109_pretreatment_beta %>%
+  full_join(p109_prevax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p109_pretreatment" = "Freq.x",
+                "p109_prevax" = "Freq.y",
+                "p109_pretreatment_umi" = "totalUMICount.x",
+                "p109_prevax_umi" = "totalUMICount.y") %>%
+  full_join(p109_postvax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p109_postvax" = "Freq",
+                "p109_postvax_umi" = "totalUMICount") %>% 
+  full_join(p109_w48_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p109_w48" = "Freq",
+                "p109_w48_umi" = "totalUMICount") %>% 
+  select("v_hit", "j_hit", "cdr3", "p109_pretreatment", "p109_pretreatment_umi", "p109_prevax", "p109_prevax_umi", "p109_postvax", "p109_postvax_umi", "p109_w48", "p109_w48_umi") %>%
+  mutate_at(c("p109_pretreatment", "p109_pretreatment_umi", "p109_prevax", "p109_prevax_umi", "p109_postvax", "p109_postvax_umi", "p109_w48", "p109_w48_umi"), as.numeric) %>% 
+  unite("Beta_clonotype", c(v_hit, j_hit, cdr3), sep = ";")
+
+dim(p109_betas_pbmc)
+```
+
+Calculate fold changes across longitudinal timepoints
+```{r}
+p109_betas_pbmc <- p109_betas_pbmc %>%
+  mutate(postvax_vs_prevax_fc = p109_postvax/p109_prevax,
+         prevax_vs_pretreatment_fc = p109_prevax/p109_pretreatment,
+         log2fc_postvax_vs_prevax = log2(postvax_vs_prevax_fc),
+         log2fc_prevax_vs_pretreatment = log2(prevax_vs_pretreatment_fc))
+```
+
+Load in vitro frequencies
+```{r}
+p109DMSO_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/18279-109DMSO_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p109poolA_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/18279-109PoolA_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p109poolB_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/18279-109PoolB_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p109_betas_invitro <- full_join(p109DMSO_beta,p109poolA_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p109_DMSO_beta" = Freq.x, 
+                  "p109_poolA_beta" = Freq.y,
+                  "p109_DMSO_umi" = totalUMICount.x,
+                  "p109_poolA_umi" = totalUMICount.y) %>%
+    full_join(p109poolB_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p109_poolB_beta" = Freq,
+                  "p109_poolB_umi" = totalUMICount)
+
+p109_betas_invitro %>% distinct(Beta_clonotype) %>% dplyr::count()
+```
+
+Convert to decimal frequency to %
+```{r}
+p109_betas_pbmc <- p109_betas_pbmc %>%
+  mutate(p109_pretreatment = p109_pretreatment * 100,
+         p109_postvax = p109_postvax * 100,
+         p109_prevax = p109_prevax * 100,
+         p109_w48 = p109_w48 * 100)
+
+p109_betas_invitro <- p109_betas_invitro %>%
+  mutate(p109_DMSO_beta = p109_DMSO_beta * 100,
+         p109_poolA_beta = p109_poolA_beta * 100,
+         p109_poolB_beta = p109_poolB_beta * 100)
+```
+
+Join longitudinal and in vitro frequencies by beta chain
+```{r}
+p109_betas <- full_join(p109_betas_pbmc, p109_betas_invitro)
+```
+
+Calculate fold changes across in vitro samples
+```{r}
+p109_betas <- p109_betas %>%
+  rowwise() %>%
+  mutate(poolA_vs_dmso_fc = sum(c(p109_poolA_beta, pseudo_freq), na.rm = TRUE)/sum(c(p109_DMSO_beta, pseudo_freq), na.rm = TRUE),
+         poolB_vs_dmso_fc = sum(c(p109_poolB_beta, pseudo_freq), na.rm = TRUE)/sum(c(p109_DMSO_beta, pseudo_freq), na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(log2fc_poolA_vs_dmso = log2(poolA_vs_dmso_fc),
+         log2fc_poolB_vs_dmso = log2(poolB_vs_dmso_fc),
+         max_log2fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ log2fc_poolA_vs_dmso,
+                                             log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ log2fc_poolB_vs_dmso),
+         max_fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ poolA_vs_dmso_fc,
+                                         log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ poolB_vs_dmso_fc))
+```
+
+Save data
+```{r}
+write.csv(p109_betas, "p109_betas_merged_Part1.csv", row.names = FALSE)
+```
+
+## Compile P110's data
+Load longitudinal frequencies
+```{r}
+p110_pretreatment_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/110pre-treat_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p110_prevax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/110pre-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p110_postvax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/110post-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p110_w38_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/110wk38_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p110_betas_pbmc <- p110_pretreatment_beta %>%
+  full_join(p110_prevax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p110_pretreatment" = "Freq.x",
+                "p110_prevax" = "Freq.y",
+                "p110_pretreatment_umi" = "totalUMICount.x",
+                "p110_prevax_umi" = "totalUMICount.y") %>%
+  full_join(p110_postvax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p110_postvax" = "Freq",
+                "p110_postvax_umi" = "totalUMICount") %>% 
+  full_join(p110_w38_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p110_w38" = "Freq",
+                "p110_w38_umi" = "totalUMICount") %>% 
+  select("v_hit", "j_hit", "cdr3", "p110_pretreatment", "p110_pretreatment_umi", "p110_prevax", "p110_prevax_umi", "p110_postvax", "p110_postvax_umi", "p110_w38", "p110_w38_umi") %>%
+  mutate_at(c("p110_pretreatment", "p110_pretreatment_umi", "p110_prevax", "p110_prevax_umi", "p110_postvax", "p110_postvax_umi", "p110_w38", "p110_w38_umi"), as.numeric) %>% 
+  unite("Beta_clonotype", c(v_hit, j_hit, cdr3), sep = ";")
+
+dim(p110_betas_pbmc)
+```
+
+Calculate fold changes across longitudinal timepoints
+```{r}
+p110_betas_pbmc <- p110_betas_pbmc %>%
+  mutate(postvax_vs_prevax_fc = p110_postvax/p110_prevax,
+         prevax_vs_pretreatment_fc = p110_prevax/p110_pretreatment,
+         log2fc_postvax_vs_prevax = log2(postvax_vs_prevax_fc),
+         log2fc_prevax_vs_pretreatment = log2(prevax_vs_pretreatment_fc))
+```
+
+Load in vitro frequencies
+```{r}
+p110DMSO_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/110DMSO_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p110poolA_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/110PoolA_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p110poolB_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/110PoolB_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p110_betas_invitro <- full_join(p110DMSO_beta,p110poolA_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p110_DMSO_beta" = Freq.x, 
+                  "p110_poolA_beta" = Freq.y,
+                  "p110_DMSO_umi" = totalUMICount.x,
+                  "p110_poolA_umi" = totalUMICount.y) %>%
+    full_join(p110poolB_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p110_poolB_beta" = Freq,
+                  "p110_poolB_umi" = totalUMICount)
+
+p110_betas_invitro %>% distinct(Beta_clonotype) %>% dplyr::count()
+```
+
+Convert to decimal frequency to %
+```{r}
+p110_betas_pbmc <- p110_betas_pbmc %>%
+  mutate(p110_pretreatment = p110_pretreatment * 100,
+         p110_postvax = p110_postvax * 100,
+         p110_prevax = p110_prevax * 100,
+         p110_w38 = p110_w38 * 100)
+
+p110_betas_invitro <- p110_betas_invitro %>%
+  mutate(p110_DMSO_beta = p110_DMSO_beta * 100,
+         p110_poolA_beta = p110_poolA_beta * 100,
+         p110_poolB_beta = p110_poolB_beta * 100)
+```
+
+Join longitudinal and in vitro frequencies by beta chain
+```{r}
+p110_betas <- full_join(p110_betas_pbmc, p110_betas_invitro)
+```
+
+Calculate fold changes across in vitro samples
+```{r}
+p110_betas <- p110_betas %>%
+  rowwise() %>%
+  mutate(poolA_vs_dmso_fc = sum(c(p110_poolA_beta, pseudo_freq), na.rm = TRUE)/sum(c(p110_DMSO_beta, pseudo_freq), na.rm = TRUE),
+         poolB_vs_dmso_fc = sum(c(p110_poolB_beta, pseudo_freq), na.rm = TRUE)/sum(c(p110_DMSO_beta, pseudo_freq), na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(log2fc_poolA_vs_dmso = log2(poolA_vs_dmso_fc),
+         log2fc_poolB_vs_dmso = log2(poolB_vs_dmso_fc),
+         max_log2fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ log2fc_poolA_vs_dmso,
+                                             log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ log2fc_poolB_vs_dmso),
+         max_fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ poolA_vs_dmso_fc,
+                                         log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ poolB_vs_dmso_fc))
+```
+
+Save data
+```{r}
+write.csv(p110_betas, "p110_betas_merged_Part1.csv", row.names = FALSE)
+```
+
+## Compile P111's data
+Load longitudinal frequencies
+```{r}
+p111_pretreatment_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/111pre-treat_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p111_prevax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/111pre-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p111_postvax_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/111post-vax_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+p111_w40_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/111wk40_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene")
+
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p111_betas_pbmc <- p111_pretreatment_beta %>%
+  full_join(p111_prevax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p111_pretreatment" = "Freq.x",
+                "p111_prevax" = "Freq.y",
+                "p111_pretreatment_umi" = "totalUMICount.x",
+                "p111_prevax_umi" = "totalUMICount.y") %>%
+  full_join(p111_postvax_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p111_postvax" = "Freq",
+                "p111_postvax_umi" = "totalUMICount") %>% 
+  full_join(p111_w40_beta, by = c("v_hit", "j_hit", "cdr3")) %>%
+  dplyr::rename("p111_w40" = "Freq",
+                "p111_w40_umi" = "totalUMICount") %>% 
+  select("v_hit", "j_hit", "cdr3", "p111_pretreatment", "p111_pretreatment_umi", "p111_prevax", "p111_prevax_umi", "p111_postvax", "p111_postvax_umi", "p111_w40", "p111_w40_umi") %>%
+  mutate_at(c("p111_pretreatment", "p111_pretreatment_umi", "p111_prevax", "p111_prevax_umi", "p111_postvax", "p111_postvax_umi", "p111_w40", "p111_w40_umi"), as.numeric) %>% 
+  unite("Beta_clonotype", c(v_hit, j_hit, cdr3), sep = ";")
+  
+dim(p111_betas_pbmc)
+```
+
+Calculate fold changes across longitudinal timepoints
+```{r}
+p111_betas_pbmc <- p111_betas_pbmc %>%
+  mutate(postvax_vs_prevax_fc = p111_postvax/p111_prevax,
+         prevax_vs_pretreatment_fc = p111_prevax/p111_pretreatment,
+         log2fc_postvax_vs_prevax = log2(postvax_vs_prevax_fc),
+         log2fc_prevax_vs_pretreatment = log2(prevax_vs_pretreatment_fc))
+```
+
+Load in vitro frequencies
+```{r}
+p111DMSO_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/111-DMSO_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p111poolA_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/111-PoolA_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+p111poolB_beta <- read.csv("/jsimonlab/projects/Wu/Melanoma_bulkTCR_Eryn/mixcr_processed_031324/Eryn_bulkrhTCR/111-PoolB_TRB_report.tsv", sep = "\t", row.names = 1) %>%
+  select(aaSeqCDR3, vGene, jGene, totalUMICount, Freq) %>%
+  dplyr::rename("cdr3" = "aaSeqCDR3", "v_hit" = "vGene", "j_hit" = "jGene") %>%
+  unite("Beta_clonotype", c(v_hit,j_hit,cdr3),sep=";")
+```
+
+Aggregate beta chains into one dataframe
+```{r}
+p111_betas_invitro <- full_join(p111DMSO_beta,p111poolA_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p111_DMSO_beta" = Freq.x,
+                  "p111_poolA_beta" = Freq.y,
+                  "p111_DMSO_umi" = totalUMICount.x,
+                  "p111_poolA_umi" = totalUMICount.y) %>%
+    full_join(p111poolB_beta,by="Beta_clonotype") %>%
+    dplyr::rename("p111_poolB_beta" = Freq,
+                  "p111_poolB_umi" = totalUMICount)
+
+p111_betas_invitro %>% distinct(Beta_clonotype) %>% dplyr::count()
+```
+
+Convert to decimal frequency to %
+```{r}
+p111_betas_pbmc <- p111_betas_pbmc %>%
+  mutate(p111_pretreatment = p111_pretreatment * 100,
+         p111_postvax = p111_postvax * 100,
+         p111_prevax = p111_prevax * 100,
+         p111_w40 = p111_w40 * 100)
+
+p111_betas_invitro <- p111_betas_invitro %>%
+  mutate(p111_DMSO_beta = p111_DMSO_beta * 100,
+         p111_poolA_beta = p111_poolA_beta * 100,
+         p111_poolB_beta = p111_poolB_beta * 100)
+```
+
+Join longitudinal and in vitro frequencies by beta chain
+```{r}
+p111_betas <- full_join(p111_betas_pbmc, p111_betas_invitro)
+```
+
+Calculate fold changes across in vitro samples
+```{r}
+p111_betas <- p111_betas %>%
+  rowwise() %>%
+  mutate(poolA_vs_dmso_fc = sum(c(p111_poolA_beta, pseudo_freq), na.rm = TRUE)/sum(c(p111_DMSO_beta, pseudo_freq), na.rm = TRUE),
+         poolB_vs_dmso_fc = sum(c(p111_poolB_beta, pseudo_freq), na.rm = TRUE)/sum(c(p111_DMSO_beta, pseudo_freq), na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(log2fc_poolA_vs_dmso = log2(poolA_vs_dmso_fc),
+         log2fc_poolB_vs_dmso = log2(poolB_vs_dmso_fc),
+         max_log2fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ log2fc_poolA_vs_dmso,
+                                             log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ log2fc_poolB_vs_dmso),
+         max_fc_pool_vs_dmso = case_when(log2fc_poolA_vs_dmso > log2fc_poolB_vs_dmso ~ poolA_vs_dmso_fc,
+                                         log2fc_poolB_vs_dmso >= log2fc_poolA_vs_dmso ~ poolB_vs_dmso_fc))
+```
+
+Save data
+```{r}
+write.csv(p111_betas, "p111_betas_merged_Part1.csv", row.names = FALSE)
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```

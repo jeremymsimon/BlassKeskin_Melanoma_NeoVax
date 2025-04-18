@@ -1,0 +1,553 @@
+# PBMCs: Determine IMP Expanded Clones {sec-pbmc-determine-imp-expansion}
+
+## Set up workspace
+```{r}
+# Libraries
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(patchwork)
+library(fossil)
+library(ggridges)
+library(webr)
+library(scales)
+
+# Function to calculate lower limit of detection
+lod <- function(dat){
+  10^(floor(log10(min(dat, na.rm = TRUE))))
+}
+
+# Function to calculate the minimum value in a bimodal distribution
+find_minimum <- function(fc_vector, adjust = 1){
+  # Write density function
+  dx <- density(fc_vector, adjust = adjust)
+  # Calculate first derivative
+  slope <- (diff(dx$y)/diff(dx$x))
+  # Find where the derivatives change sign
+  change_rows <- which(diff(sign(slope))!=0)
+  change_x <- dx$x[change_rows]
+  # Extract the second time it changes sign
+  min_x <- change_x[2]
+  # second_min_x <- change_x[4]
+  return(min_x)
+}
+```
+
+## Categorizations of temporally dynamic clones
+Defintion of Post-Vaccine clones in PBMCs
+1. Quality control metric: the clone must have 3 or more UMI in at least one time point
+2. Below the limit of detection pre-treatment and Pre-vaccine
+3. >10x lower limit at post-vaccine
+4. Present at all time points post-vaccine
+
+Defintion of Post-Nivolumab expanded clones in PBMCs
+1. Quality control metric: the clone must have 3 or more UMI in at least one time point
+2. Below the limit of detection post-nivolumab
+3. >10x lower limit post-nivolumab
+4. Present at all time points after post-nivolumab
+
+Defintion of Existing clones in PBMCs
+1. Quality control metric: the clone must have 3 or more UMI in at least one time point
+2. >10x lower limit pre-treatment
+3. Present at all time points
+
+## Load PBMC data
+```{r}
+p101_betas <- read.csv("p101_betas_merged_Part1.csv")
+p103_betas <- read.csv("p103_betas_merged_Part1.csv")
+p104_betas <- read.csv("p104_betas_merged_Part1.csv")
+p105_betas <- read.csv("p105_betas_merged_Part1.csv")
+p106_betas <- read.csv("p106_betas_merged_Part1.csv")
+p108_betas <- read.csv("p108_betas_merged_Part1.csv")
+p109_betas <- read.csv("p109_betas_merged_Part1.csv")
+p110_betas <- read.csv("p110_betas_merged_Part1.csv")
+p111_betas <- read.csv("p111_betas_merged_Part1.csv")
+```
+
+## Change all undetected longitudinal values to the lower limit of detection per timepoint
+Makes plotting the movement of clones over time easier!
+```{r}
+# Generate the lower limit of detection before any filters are applied
+p101_pretreatment_lod <- lod(p101_betas$p101_pretreatment)
+p101_prevax_lod <- lod(p101_betas$p101_prevax)
+p101_postvax_lod <- lod(p101_betas$p101_postvax)
+
+p103_pretreatment_lod <- lod(p103_betas$p103_pretreatment)
+p103_prevax_lod <- lod(p103_betas$p103_prevax)
+p103_postvax_lod <- lod(p103_betas$p103_postvax)
+p103_w48_lod <- lod(p103_betas$p103_w48)
+p103_w72_lod <- lod(p103_betas$p103_w72)
+
+p104_pretreatment_lod <- lod(p104_betas$p104_pretreatment)
+p104_prevax_lod <- lod(p104_betas$p104_prevax)
+p104_postvax_lod <- lod(p104_betas$p104_postvax)
+p104_w48_lod <- lod(p104_betas$p104_w48)
+
+p105_pretreatment_lod <- lod(p105_betas$p105_pretreatment)
+p105_prevax_lod <- lod(p105_betas$p105_prevax)
+p105_postvax_lod <- lod(p105_betas$p105_postvax)
+p105_w48_lod <- lod(p105_betas$p105_w48)
+
+p106_pretreatment_lod <- lod(p106_betas$p106_pretreatment)
+p106_prevax_lod <- lod(p106_betas$p106_prevax)
+p106_postvax_lod <- lod(p106_betas$p106_postvax)
+p106_w48_lod <- lod(p106_betas$p106_w48)
+
+p108_pretreatment_lod <- lod(p108_betas$p108_pretreatment)
+p108_prevax_lod <- lod(p108_betas$p108_prevax)
+p108_postvax_lod <- lod(p108_betas$p108_postvax)
+p108_w32_lod <- lod(p108_betas$p108_w32)
+
+p109_pretreatment_lod <- lod(p109_betas$p109_pretreatment)
+p109_prevax_lod <- lod(p109_betas$p109_prevax)
+p109_postvax_lod <- lod(p109_betas$p109_postvax)
+p109_w48_lod <- lod(p109_betas$p109_w48)
+
+p110_pretreatment_lod <- lod(p110_betas$p110_pretreatment)
+p110_prevax_lod <- lod(p110_betas$p110_prevax)
+p110_postvax_lod <- lod(p110_betas$p110_postvax)
+p110_w38_lod <- lod(p110_betas$p110_w38)
+
+p111_pretreatment_lod <- lod(p111_betas$p111_pretreatment)
+p111_prevax_lod <- lod(p111_betas$p111_prevax)
+p111_postvax_lod <- lod(p111_betas$p111_postvax)
+p111_w40_lod <- lod(p111_betas$p111_w40)
+
+# Update undetected values to the LOD
+p101_betas <- p101_betas %>%
+  mutate(p101_pretreatment = replace_na(p101_pretreatment, p101_pretreatment_lod),
+         p101_prevax = replace_na(p101_prevax, p101_prevax_lod),
+         p101_postvax = replace_na(p101_postvax, p101_postvax_lod))
+
+p103_betas <- p103_betas %>%
+  mutate(p103_pretreatment = replace_na(p103_pretreatment, p103_pretreatment_lod),
+         p103_prevax = replace_na(p103_prevax, p103_prevax_lod),
+         p103_postvax = replace_na(p103_postvax, p103_postvax_lod),
+         p103_w48 = replace_na(p103_w48, p103_w48_lod),
+         p103_w72 = replace_na(p103_w72, p103_w72_lod))
+p104_betas <- p104_betas %>%
+  mutate(p104_pretreatment = replace_na(p104_pretreatment, p104_pretreatment_lod),
+         p104_prevax = replace_na(p104_prevax, p104_prevax_lod),
+         p104_postvax = replace_na(p104_postvax, p104_postvax_lod),
+         p104_w48 = replace_na(p104_w48, p104_w48_lod))
+p105_betas <- p105_betas %>%
+  mutate(p105_pretreatment = replace_na(p105_pretreatment, p105_pretreatment_lod),
+         p105_prevax = replace_na(p105_prevax, p105_prevax_lod),
+         p105_postvax = replace_na(p105_postvax, p105_postvax_lod),
+         p105_w48 = replace_na(p105_w48, p105_w48_lod))
+p106_betas <- p106_betas %>%
+  mutate(p106_pretreatment = replace_na(p106_pretreatment, p106_pretreatment_lod),
+         p106_prevax = replace_na(p106_prevax, p106_prevax_lod),
+         p106_postvax = replace_na(p106_postvax, p106_postvax_lod),
+         p106_w48 = replace_na(p106_w48, p106_w48_lod))
+p108_betas <- p108_betas %>%
+  mutate(p108_pretreatment = replace_na(p108_pretreatment, p108_pretreatment_lod),
+         p108_prevax = replace_na(p108_prevax, p108_prevax_lod),
+         p108_postvax = replace_na(p108_postvax, p108_postvax_lod),
+         p108_w32 = replace_na(p108_w32, p108_w32_lod))
+p109_betas <- p109_betas %>%
+  mutate(p109_pretreatment = replace_na(p109_pretreatment, p109_pretreatment_lod),
+         p109_prevax = replace_na(p109_prevax, p109_prevax_lod),
+         p109_postvax = replace_na(p109_postvax, p109_postvax_lod),
+         p109_w48 = replace_na(p109_w48, p109_w48_lod))
+p110_betas <- p110_betas %>%
+  mutate(p110_pretreatment = replace_na(p110_pretreatment, p110_pretreatment_lod),
+         p110_prevax = replace_na(p110_prevax, p110_prevax_lod),
+         p110_postvax = replace_na(p110_postvax, p110_postvax_lod),
+         p110_w38 = replace_na(p110_w38, p110_w38_lod))
+p111_betas <- p111_betas %>%
+  mutate(p111_pretreatment = replace_na(p111_pretreatment, p111_pretreatment_lod),
+         p111_prevax = replace_na(p111_prevax, p111_prevax_lod),
+         p111_postvax = replace_na(p111_postvax, p111_postvax_lod),
+         p111_w40 = replace_na(p111_w40, p111_w40_lod))
+```
+
+## Load categorized clones
+```{r}
+preexisting_betas <- read.csv("PBMC_Existing_Beta_Chains_Part2.csv", row.names = 1)
+postnivo_betas <- read.csv("PBMC_Post-Nivolumab_Beta_Chains_Part2.csv", row.names = 1)
+postvax_betas <- read.csv("PBMC_Post-Vaccine_Beta_Chains_Part2.csv", row.names = 1)
+
+# Check how many beta chains are shared across patients
+table(duplicated(postvax_betas$Beta_clonotype))
+table(duplicated(postnivo_betas$Beta_clonotype))
+table(duplicated(preexisting_betas$Beta_clonotype))
+```
+
+## Integrate categories into data, adding an additional category called "Other" for clones who do not match the other criteria
+```{r}
+p101_betas_typed <- p101_betas %>%
+  mutate(Type = case_when(Beta_clonotype %in% filter(postvax_betas, postvax_betas$Patient == "P101")$Beta_clonotype ~ "Post-Vaccine",
+                          Beta_clonotype %in% filter(postnivo_betas, postnivo_betas$Patient == "P101")$Beta_clonotype ~ "Post-Nivolumab",
+                          Beta_clonotype %in% filter(preexisting_betas, preexisting_betas$Patient == "P101")$Beta_clonotype ~ "Existing"),
+         Type = case_when(!is.na(Type) ~ Type,
+                          is.na(Type) ~ "Other"),
+         Patient = "P101")
+
+p103_betas_typed <- p103_betas %>%
+  mutate(Type = case_when(Beta_clonotype %in% filter(postvax_betas, postvax_betas$Patient == "P103")$Beta_clonotype ~ "Post-Vaccine",
+                          Beta_clonotype %in% filter(postnivo_betas, postnivo_betas$Patient == "P103")$Beta_clonotype ~ "Post-Nivolumab",
+                          Beta_clonotype %in% filter(preexisting_betas, preexisting_betas$Patient == "P103")$Beta_clonotype ~ "Existing"),
+         Type = case_when(!is.na(Type) ~ Type,
+                          is.na(Type) ~ "Other"),
+         Patient = "P103")
+
+p104_betas_typed <- p104_betas %>%
+  mutate(Type = case_when(Beta_clonotype %in% filter(postvax_betas, postvax_betas$Patient == "P104")$Beta_clonotype ~ "Post-Vaccine",
+                          Beta_clonotype %in% filter(postnivo_betas, postnivo_betas$Patient == "P104")$Beta_clonotype ~ "Post-Nivolumab",
+                          Beta_clonotype %in% filter(preexisting_betas, preexisting_betas$Patient == "P104")$Beta_clonotype ~ "Existing"),
+         Type = case_when(!is.na(Type) ~ Type,
+                          is.na(Type) ~ "Other"),
+         Patient = "P104")
+
+p105_betas_typed <- p105_betas %>%
+  mutate(Type = case_when(Beta_clonotype %in% filter(postvax_betas, postvax_betas$Patient == "P105")$Beta_clonotype ~ "Post-Vaccine",
+                          Beta_clonotype %in% filter(postnivo_betas, postnivo_betas$Patient == "P105")$Beta_clonotype ~ "Post-Nivolumab",
+                          Beta_clonotype %in% filter(preexisting_betas, preexisting_betas$Patient == "P105")$Beta_clonotype ~ "Existing"),
+         Type = case_when(!is.na(Type) ~ Type,
+                          is.na(Type) ~ "Other"),
+         Patient = "P105")
+
+p106_betas_typed <- p106_betas %>%
+  mutate(Type = case_when(Beta_clonotype %in% filter(postvax_betas, postvax_betas$Patient == "P106")$Beta_clonotype ~ "Post-Vaccine",
+                          Beta_clonotype %in% filter(postnivo_betas, postnivo_betas$Patient == "P106")$Beta_clonotype ~ "Post-Nivolumab",
+                          Beta_clonotype %in% filter(preexisting_betas, preexisting_betas$Patient == "P106")$Beta_clonotype ~ "Existing"),
+         Type = case_when(!is.na(Type) ~ Type,
+                          is.na(Type) ~ "Other"),
+         Patient = "P106")
+
+p108_betas_typed <- p108_betas %>%
+  mutate(Type = case_when(Beta_clonotype %in% filter(postvax_betas, postvax_betas$Patient == "P108")$Beta_clonotype ~ "Post-Vaccine",
+                          Beta_clonotype %in% filter(postnivo_betas, postnivo_betas$Patient == "P108")$Beta_clonotype ~ "Post-Nivolumab",
+                          Beta_clonotype %in% filter(preexisting_betas, preexisting_betas$Patient == "P108")$Beta_clonotype ~ "Existing"),
+         Type = case_when(!is.na(Type) ~ Type,
+                          is.na(Type) ~ "Other"),
+         Patient = "P108")
+
+p109_betas_typed <- p109_betas %>%
+  mutate(Type = case_when(Beta_clonotype %in% filter(postvax_betas, postvax_betas$Patient == "P109")$Beta_clonotype ~ "Post-Vaccine",
+                          Beta_clonotype %in% filter(postnivo_betas, postnivo_betas$Patient == "P109")$Beta_clonotype ~ "Post-Nivolumab",
+                          Beta_clonotype %in% filter(preexisting_betas, preexisting_betas$Patient == "P109")$Beta_clonotype ~ "Existing"),
+         Type = case_when(!is.na(Type) ~ Type,
+                          is.na(Type) ~ "Other"),
+         Patient = "P109")
+
+p110_betas_typed <- p110_betas %>%
+  mutate(Type = case_when(Beta_clonotype %in% filter(postvax_betas, postvax_betas$Patient == "P110")$Beta_clonotype ~ "Post-Vaccine",
+                          Beta_clonotype %in% filter(postnivo_betas, postnivo_betas$Patient == "P110")$Beta_clonotype ~ "Post-Nivolumab",
+                          Beta_clonotype %in% filter(preexisting_betas, preexisting_betas$Patient == "P110")$Beta_clonotype ~ "Existing"),
+         Type = case_when(!is.na(Type) ~ Type,
+                          is.na(Type) ~ "Other"),
+         Patient = "P110")
+
+p111_betas_typed <- p111_betas %>%
+  mutate(Type = case_when(Beta_clonotype %in% filter(postvax_betas, postvax_betas$Patient == "P111")$Beta_clonotype ~ "Post-Vaccine",
+                          Beta_clonotype %in% filter(postnivo_betas, postnivo_betas$Patient == "P111")$Beta_clonotype ~ "Post-Nivolumab",
+                          Beta_clonotype %in% filter(preexisting_betas, preexisting_betas$Patient == "P111")$Beta_clonotype ~ "Existing"),
+         Type = case_when(!is.na(Type) ~ Type,
+                          is.na(Type) ~ "Other"),
+         Patient = "P111")
+```
+
+## Save categorized clones
+```{r}
+write.csv(p101_betas_typed, "p101_betas_merged_typed_full_Part3.csv", row.names = FALSE)
+write.csv(p103_betas_typed, "p103_betas_merged_typed_full_Part3.csv", row.names = FALSE)
+write.csv(p104_betas_typed, "p104_betas_merged_typed_full_Part3.csv", row.names = FALSE)
+write.csv(p105_betas_typed, "p105_betas_merged_typed_full_Part3.csv", row.names = FALSE)
+write.csv(p106_betas_typed, "p106_betas_merged_typed_full_Part3.csv", row.names = FALSE)
+write.csv(p108_betas_typed, "p108_betas_merged_typed_full_Part3.csv", row.names = FALSE)
+write.csv(p109_betas_typed, "p109_betas_merged_typed_full_Part3.csv", row.names = FALSE)
+write.csv(p110_betas_typed, "p110_betas_merged_typed_full_Part3.csv", row.names = FALSE)
+write.csv(p111_betas_typed, "p111_betas_merged_typed_full_Part3.csv", row.names = FALSE)
+```
+
+## Remove clones deemed "Other" from data
+```{r}
+p101_betas_typed <- p101_betas_typed %>%
+  filter(Type != "Other") %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p103_betas_typed <- p103_betas_typed %>%
+  filter(Type != "Other") %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p104_betas_typed <- p104_betas_typed %>%
+  filter(Type != "Other") %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p105_betas_typed <- p105_betas_typed %>%
+  filter(Type != "Other") %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p106_betas_typed <- p106_betas_typed %>%
+  filter(Type != "Other") %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p108_betas_typed <- p108_betas_typed %>%
+  filter(Type != "Other") %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p109_betas_typed <- p109_betas_typed %>%
+  filter(Type != "Other") %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p110_betas_typed <- p110_betas_typed %>%
+  filter(Type != "Other") %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p111_betas_typed <- p111_betas_typed %>%
+  filter(Type != "Other") %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+```
+
+## Plot ridgeplot split by patient and TCR type
+```{r, fig.width = 10, fig.height = 7}
+p101_ridge <- p101_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(bandwidth = 0.3, scale = 2) +
+  # coord_cartesian(xlim = c(1.5, 1000)) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  # scale_x_log10(breaks=c(1.5, 10, 100, 1000)) +
+  xlab("Invitro Expansion") +
+  ylab("Number of clones") +
+  ggtitle("P101") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5))
+
+p103_ridge <- p103_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(bandwidth = 0.3, scale = 2) +
+  # coord_cartesian(xlim = c(1.5, 1000)) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  # scale_x_log10(breaks=c(1.5, 10, 100, 1000)) +
+  xlab("Invitro Expansion") +
+  ylab("Number of clones") +
+  ggtitle("P103") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5))
+
+p104_ridge <- p104_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(bandwidth = 0.3, scale = 2) +
+  # coord_cartesian(xlim = c(1.5, 1000)) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  # scale_x_log10(breaks=c(1.5, 10, 100, 1000)) +
+  xlab("Invitro Expansion") +
+  ylab("Number of clones") +
+  ggtitle("P104") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5))
+
+p105_ridge <- p105_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(bandwidth = 0.3, scale = 2) +
+  # coord_cartesian(xlim = c(1.5, 1000)) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  # scale_x_log10(breaks=c(1.5, 10, 100, 1000)) +
+  xlab("Invitro Expansion") +
+  ylab("Number of clones") +
+  ggtitle("P105") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5))
+
+p106_ridge <- p106_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(bandwidth = 0.3, scale = 2) +
+  # coord_cartesian(xlim = c(1.5, 1000)) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  # scale_x_log10(breaks=c(1.5, 10, 100, 1000)) +
+  xlab("Invitro Expansion") +
+  ylab("Number of clones") +
+  ggtitle("P106") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5))
+
+p108_ridge <- p108_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(bandwidth = 0.3, scale = 2) +
+  # coord_cartesian(xlim = c(1.5, 1000)) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  # scale_x_log10(breaks=c(1.5, 10, 100, 1000)) +
+  xlab("Invitro Expansion") +
+  ylab("Number of clones") +
+  ggtitle("P108") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5))
+
+p109_ridge <- p109_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(bandwidth = 0.3, scale = 2) +
+  # coord_cartesian(xlim = c(1.5, 1000)) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  # scale_x_log10(breaks=c(1.5, 10, 100, 1000)) +
+  xlab("Invitro Expansion") +
+  ylab("Number of clones") +
+  ggtitle("P109") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5))
+
+p110_ridge <- p110_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(bandwidth = 0.3, scale = 2) +
+  # coord_cartesian(xlim = c(1.5, 1000)) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  # scale_x_log10(breaks=c(1.5, 10, 100, 1000)) +
+  xlab("Invitro Expansion") +
+  ylab("Number of clones") +
+  ggtitle("P110") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5))
+
+p111_ridge <- p111_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(bandwidth = 0.3, scale = 2) +
+  # coord_cartesian(xlim = c(1.5, 1000)) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  # scale_x_log10(breaks=c(1.5, 10, 100, 1000)) +
+  xlab("Invitro Expansion") +
+  ylab("Number of clones") +
+  ggtitle("P111") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5))
+
+p101_ridge + p103_ridge + p104_ridge + p105_ridge + p106_ridge +
+  p108_ridge + p109_ridge + p110_ridge + p111_ridge + plot_layout(guides = 'collect', 
+                                                                  axis_titles = "collect", 
+                                                                  ncol = 3)
+```
+
+## Find a cutoff for invitro expansion per patient
+```{r}
+p101_max_fc <- p101_betas_typed$max_fc_pool_vs_dmso[!is.na(p101_betas_typed$max_fc_pool_vs_dmso)]
+p103_max_fc <- p103_betas_typed$max_fc_pool_vs_dmso[!is.na(p103_betas_typed$max_fc_pool_vs_dmso)]
+p104_max_fc <- p104_betas_typed$max_fc_pool_vs_dmso[!is.na(p104_betas_typed$max_fc_pool_vs_dmso)]
+p105_max_fc <- p105_betas_typed$max_fc_pool_vs_dmso[!is.na(p105_betas_typed$max_fc_pool_vs_dmso)]
+p106_max_fc <- p106_betas_typed$max_fc_pool_vs_dmso[!is.na(p106_betas_typed$max_fc_pool_vs_dmso)]
+p108_max_fc <- p108_betas_typed$max_fc_pool_vs_dmso[!is.na(p108_betas_typed$max_fc_pool_vs_dmso)]
+p109_max_fc <- p109_betas_typed$max_fc_pool_vs_dmso[!is.na(p109_betas_typed$max_fc_pool_vs_dmso)]
+p110_max_fc <- p110_betas_typed$max_fc_pool_vs_dmso[!is.na(p110_betas_typed$max_fc_pool_vs_dmso)]
+p111_max_fc <- p111_betas_typed$max_fc_pool_vs_dmso[!is.na(p111_betas_typed$max_fc_pool_vs_dmso)]
+
+p101_min_x <- find_minimum(p101_max_fc)
+p103_min_x <- find_minimum(p103_max_fc)
+p104_min_x <- find_minimum(p104_max_fc)
+p105_min_x <- find_minimum(p105_max_fc)
+p106_min_x <- find_minimum(p106_max_fc)
+p108_min_x <- find_minimum(p108_max_fc)
+p109_min_x <- find_minimum(p109_max_fc)
+p110_min_x <- find_minimum(p110_max_fc)
+p111_min_x <- find_minimum(p111_max_fc)
+  
+```
+
+## Ridgeplot with expansion minimum
+```{r, fig.width = 10, fig.height = 7}
+all_pt_ridge <- (p101_ridge + geom_vline(xintercept = log2(p101_min_x), color = "red", linetype="dashed")) + 
+  (p103_ridge + geom_vline(xintercept = log2(p103_min_x), color = "red", linetype="dashed")) + 
+  (p104_ridge + geom_vline(xintercept = log2(p104_min_x), color = "red", linetype="dashed")) + 
+  (p105_ridge + geom_vline(xintercept = log2(p105_min_x), color = "red", linetype="dashed")) + 
+  (p106_ridge + geom_vline(xintercept = log2(p106_min_x), color = "red", linetype="dashed")) +
+  (p108_ridge + geom_vline(xintercept = log2(p108_min_x), color = "red", linetype="dashed")) + 
+  (p109_ridge + geom_vline(xintercept = log2(p109_min_x), color = "red", linetype="dashed")) + 
+  (p110_ridge + geom_vline(xintercept = log2(p110_min_x), color = "red", linetype="dashed")) + 
+  (p111_ridge + geom_vline(xintercept = log2(p111_min_x), color = "red", linetype="dashed")) + 
+  plot_layout(guides = 'collect', axis_titles = "collect", ncol = 3)
+
+all_pt_ridge
+```
+
+## Which clones see invitro expansion past local minimum?
+```{r}
+p101_betas_typed <- p101_betas_typed %>%
+  mutate(expanded_local_min = case_when(max_fc_pool_vs_dmso >= p101_min_x ~ TRUE,
+                                        max_fc_pool_vs_dmso < p101_min_x ~ FALSE),
+         Patient = "P101")
+p103_betas_typed <- p103_betas_typed %>%
+  mutate(expanded_local_min = case_when(max_fc_pool_vs_dmso >= p103_min_x ~ TRUE,
+                                        max_fc_pool_vs_dmso < p103_min_x ~ FALSE),
+         Patient = "P103")
+p104_betas_typed <- p104_betas_typed %>%
+  mutate(expanded_local_min = case_when(max_fc_pool_vs_dmso >= p104_min_x ~ TRUE,
+                                        max_fc_pool_vs_dmso < p104_min_x ~ FALSE),
+         Patient = "P104")
+p105_betas_typed <- p105_betas_typed %>%
+  mutate(expanded_local_min = case_when(max_fc_pool_vs_dmso >= p105_min_x ~ TRUE,
+                                        max_fc_pool_vs_dmso < p105_min_x ~ FALSE),
+         Patient = "P105")
+p106_betas_typed <- p106_betas_typed %>%
+  mutate(expanded_local_min = case_when(max_fc_pool_vs_dmso >= p106_min_x ~ TRUE,
+                                        max_fc_pool_vs_dmso < p106_min_x ~ FALSE),
+         Patient = "P106")
+p108_betas_typed <- p108_betas_typed %>%
+  mutate(expanded_local_min = case_when(max_fc_pool_vs_dmso >= p108_min_x ~ TRUE,
+                                        max_fc_pool_vs_dmso < p108_min_x ~ FALSE),
+         Patient = "P108")
+p109_betas_typed <- p109_betas_typed %>%
+  mutate(expanded_local_min = case_when(max_fc_pool_vs_dmso >= p109_min_x ~ TRUE,
+                                        max_fc_pool_vs_dmso < p109_min_x ~ FALSE),
+         Patient = "P109")
+p110_betas_typed <- p110_betas_typed %>%
+  mutate(expanded_local_min = case_when(max_fc_pool_vs_dmso >= p110_min_x ~ TRUE,
+                                        max_fc_pool_vs_dmso < p110_min_x ~ FALSE),
+         Patient = "P110")
+p111_betas_typed <- p111_betas_typed %>%
+  mutate(expanded_local_min = case_when(max_fc_pool_vs_dmso >= p111_min_x ~ TRUE,
+                                        max_fc_pool_vs_dmso < p111_min_x ~ FALSE),
+         Patient = "P111")
+```
+
+## Subset for clones which pass invitro expansion- i.e. are "IMP expanded clones"
+```{r}
+p101_betas_imp_expanded <- p101_betas_typed %>%
+  filter(expanded_local_min == TRUE)
+p103_betas_imp_expanded <- p103_betas_typed %>%
+  filter(expanded_local_min == TRUE)
+p104_betas_imp_expanded <- p104_betas_typed %>%
+  filter(expanded_local_min == TRUE)
+p105_betas_imp_expanded <- p105_betas_typed %>%
+  filter(expanded_local_min == TRUE)
+p106_betas_imp_expanded <- p106_betas_typed %>%
+  filter(expanded_local_min == TRUE)
+p108_betas_imp_expanded <- p108_betas_typed %>%
+  filter(expanded_local_min == TRUE)
+p109_betas_imp_expanded <- p109_betas_typed %>%
+  filter(expanded_local_min == TRUE)
+p110_betas_imp_expanded <- p110_betas_typed %>%
+  filter(expanded_local_min == TRUE)
+p111_betas_imp_expanded <- p111_betas_typed %>%
+  filter(expanded_local_min == TRUE)
+```
+
+## Save typed clones
+```{r}
+write.csv(p101_betas_typed, "p101_betas_merged_typed_Part3.csv", row.names = FALSE)
+write.csv(p103_betas_typed, "p103_betas_merged_typed_Part3.csv", row.names = FALSE)
+write.csv(p104_betas_typed, "p104_betas_merged_typed_Part3.csv", row.names = FALSE)
+write.csv(p105_betas_typed, "p105_betas_merged_typed_Part3.csv", row.names = FALSE)
+write.csv(p106_betas_typed, "p106_betas_merged_typed_Part3.csv", row.names = FALSE)
+write.csv(p108_betas_typed, "p108_betas_merged_typed_Part3.csv", row.names = FALSE)
+write.csv(p109_betas_typed, "p109_betas_merged_typed_Part3.csv", row.names = FALSE)
+write.csv(p110_betas_typed, "p110_betas_merged_typed_Part3.csv", row.names = FALSE)
+write.csv(p111_betas_typed, "p111_betas_merged_typed_Part3.csv", row.names = FALSE)
+```
+
+## Save expanded clones
+```{r}
+write.csv(p101_betas_imp_expanded, "p101_betas_merged_typed_imp_expanded_Part3.csv", row.names = FALSE)
+write.csv(p103_betas_imp_expanded, "p103_betas_merged_typed_imp_expanded_Part3.csv", row.names = FALSE)
+write.csv(p104_betas_imp_expanded, "p104_betas_merged_typed_imp_expanded_Part3.csv", row.names = FALSE)
+write.csv(p105_betas_imp_expanded, "p105_betas_merged_typed_imp_expanded_Part3.csv", row.names = FALSE)
+write.csv(p106_betas_imp_expanded, "p106_betas_merged_typed_imp_expanded_Part3.csv", row.names = FALSE)
+write.csv(p108_betas_imp_expanded, "p108_betas_merged_typed_imp_expanded_Part3.csv", row.names = FALSE)
+write.csv(p109_betas_imp_expanded, "p109_betas_merged_typed_imp_expanded_Part3.csv", row.names = FALSE)
+write.csv(p110_betas_imp_expanded, "p110_betas_merged_typed_imp_expanded_Part3.csv", row.names = FALSE)
+write.csv(p111_betas_imp_expanded, "p111_betas_merged_typed_imp_expanded_Part3.csv", row.names = FALSE)
+```
+
+## Save the invitro-expansion cutoff values per patient
+```{r}
+pt_vec <- c("P101", "P103", "P104", "P105", "P106", "P108", "P109", "P110", "P111")
+cutoff_vec <- c(p101_min_x, p103_min_x, p104_min_x, p105_min_x, p106_min_x, p108_min_x, p109_min_x, p110_min_x, p111_min_x)
+cutoff_df <- data.frame(Patient = pt_vec, invitro_exp_cutoff = cutoff_vec)
+
+write.csv(cutoff_df, "IMP_expanded_cuotff_Part3.csv", row.names = FALSE)
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
+

@@ -1,0 +1,277 @@
+# PBMCs: Define "Existing" Clones {#sec-pbmc-define-existing-clones}
+
+## Set up workspace
+```{r}
+# Load libraries
+library(dplyr)
+library(tidyverse)
+
+# Function to calculate the lower limit of detection
+lod <- function(dat){
+  10^(floor(log10(min(dat, na.rm = TRUE))))
+}
+```
+
+## Defintion of pre-existing clones in PBMCs
+1. Quality control metric: the clone must have 3 or more UMI in at least one time point
+2. >10x the lower limit of detection at the pre-treatment timepoint
+3. Present at all time points after pre-treatment
+
+## Load PBMC data
+```{r}
+p101_betas <- read.csv("p101_betas_merged_Part1.csv")
+p103_betas <- read.csv("p103_betas_merged_Part1.csv")
+p104_betas <- read.csv("p104_betas_merged_Part1.csv")
+p105_betas <- read.csv("p105_betas_merged_Part1.csv")
+p106_betas <- read.csv("p106_betas_merged_Part1.csv")
+p108_betas <- read.csv("p108_betas_merged_Part1.csv")
+p109_betas <- read.csv("p109_betas_merged_Part1.csv")
+p110_betas <- read.csv("p110_betas_merged_Part1.csv")
+p111_betas <- read.csv("p111_betas_merged_Part1.csv")
+```
+
+## Update undetected values
+```{r}
+# Calculate the lower limit of detection on the longitudinal samples before any clones are filtered
+p101_pretreatment_lod <- lod(p101_betas$p101_pretreatment)
+p101_prevax_lod <- lod(p101_betas$p101_prevax)
+p101_postvax_lod <- lod(p101_betas$p101_postvax)
+
+p103_pretreatment_lod <- lod(p103_betas$p103_pretreatment)
+p103_prevax_lod <- lod(p103_betas$p103_prevax)
+p103_postvax_lod <- lod(p103_betas$p103_postvax)
+p103_w48_lod <- lod(p103_betas$p103_w48)
+p103_w72_lod <- lod(p103_betas$p103_w72)
+
+p104_pretreatment_lod <- lod(p104_betas$p104_pretreatment)
+p104_prevax_lod <- lod(p104_betas$p104_prevax)
+p104_postvax_lod <- lod(p104_betas$p104_postvax)
+p104_w48_lod <- lod(p104_betas$p104_w48)
+
+p105_pretreatment_lod <- lod(p105_betas$p105_pretreatment)
+p105_prevax_lod <- lod(p105_betas$p105_prevax)
+p105_postvax_lod <- lod(p105_betas$p105_postvax)
+p105_w48_lod <- lod(p105_betas$p105_w48)
+
+p106_pretreatment_lod <- lod(p106_betas$p106_pretreatment)
+p106_prevax_lod <- lod(p106_betas$p106_prevax)
+p106_postvax_lod <- lod(p106_betas$p106_postvax)
+p106_w48_lod <- lod(p106_betas$p106_w48)
+
+p108_pretreatment_lod <- lod(p108_betas$p108_pretreatment)
+p108_prevax_lod <- lod(p108_betas$p108_prevax)
+p108_postvax_lod <- lod(p108_betas$p108_postvax)
+p108_w32_lod <- lod(p108_betas$p108_w32)
+
+p109_pretreatment_lod <- lod(p109_betas$p109_pretreatment)
+p109_prevax_lod <- lod(p109_betas$p109_prevax)
+p109_postvax_lod <- lod(p109_betas$p109_postvax)
+p109_w48_lod <- lod(p109_betas$p109_w48)
+
+p110_pretreatment_lod <- lod(p110_betas$p110_pretreatment)
+p110_prevax_lod <- lod(p110_betas$p110_prevax)
+p110_postvax_lod <- lod(p110_betas$p110_postvax)
+p110_w38_lod <- lod(p110_betas$p110_w38)
+
+p111_pretreatment_lod <- lod(p111_betas$p111_pretreatment)
+p111_prevax_lod <- lod(p111_betas$p111_prevax)
+p111_postvax_lod <- lod(p111_betas$p111_postvax)
+p111_w40_lod <- lod(p111_betas$p111_w40)
+
+# Update undetected values to the LOD to simplify longitudinal frequency plots
+p101_betas <- p101_betas %>%
+  mutate(p101_pretreatment = replace_na(p101_pretreatment, p101_pretreatment_lod),
+         p101_prevax = replace_na(p101_prevax, p101_prevax_lod),
+         p101_postvax = replace_na(p101_postvax, p101_postvax_lod))
+
+p103_betas <- p103_betas %>%
+  mutate(p103_pretreatment = replace_na(p103_pretreatment, p103_pretreatment_lod),
+         p103_prevax = replace_na(p103_prevax, p103_prevax_lod),
+         p103_postvax = replace_na(p103_postvax, p103_postvax_lod),
+         p103_w48 = replace_na(p103_w48, p103_w48_lod),
+         p103_w72 = replace_na(p103_w72, p103_w72_lod)
+         )
+p104_betas <- p104_betas %>%
+  mutate(p104_pretreatment = replace_na(p104_pretreatment, p104_pretreatment_lod),
+         p104_prevax = replace_na(p104_prevax, p104_prevax_lod),
+         p104_postvax = replace_na(p104_postvax, p104_postvax_lod),
+         p104_w48 = replace_na(p104_w48, p104_w48_lod))
+p105_betas <- p105_betas %>%
+  mutate(p105_pretreatment = replace_na(p105_pretreatment, p105_pretreatment_lod),
+         p105_prevax = replace_na(p105_prevax, p105_prevax_lod),
+         p105_postvax = replace_na(p105_postvax, p105_postvax_lod),
+         p105_w48 = replace_na(p105_w48, p105_w48_lod))
+p106_betas <- p106_betas %>%
+  mutate(p106_pretreatment = replace_na(p106_pretreatment, p106_pretreatment_lod),
+         p106_prevax = replace_na(p106_prevax, p106_prevax_lod),
+         p106_postvax = replace_na(p106_postvax, p106_postvax_lod),
+         p106_w48 = replace_na(p106_w48, p106_w48_lod))
+p108_betas <- p108_betas %>%
+  mutate(p108_pretreatment = replace_na(p108_pretreatment, p108_pretreatment_lod),
+         p108_prevax = replace_na(p108_prevax, p108_prevax_lod),
+         p108_postvax = replace_na(p108_postvax, p108_postvax_lod),
+         p108_w32 = replace_na(p108_w32, p108_w32_lod))
+p109_betas <- p109_betas %>%
+  mutate(p109_pretreatment = replace_na(p109_pretreatment, p109_pretreatment_lod),
+         p109_prevax = replace_na(p109_prevax, p109_prevax_lod),
+         p109_postvax = replace_na(p109_postvax, p109_postvax_lod),
+         p109_w48 = replace_na(p109_w48, p109_w48_lod))
+p110_betas <- p110_betas %>%
+  mutate(p110_pretreatment = replace_na(p110_pretreatment, p110_pretreatment_lod),
+         p110_prevax = replace_na(p110_prevax, p110_prevax_lod),
+         p110_postvax = replace_na(p110_postvax, p110_postvax_lod),
+         p110_w38 = replace_na(p110_w38, p110_w38_lod))
+p111_betas <- p111_betas %>%
+  mutate(p111_pretreatment = replace_na(p111_pretreatment, p111_pretreatment_lod),
+         p111_prevax = replace_na(p111_prevax, p111_prevax_lod),
+         p111_postvax = replace_na(p111_postvax, p111_postvax_lod),
+         p111_w40 = replace_na(p111_w40, p111_w40_lod))
+```
+
+## Implement quality control metric: each clone must have 3 or more UMI in at least one time point
+```{r}
+p101_betas_qc <- p101_betas %>%
+  filter(p101_pretreatment_umi >= 3 | p101_prevax_umi >= 3 | p101_postvax_umi >= 3)
+
+p103_betas_qc <- p103_betas %>%
+  filter(p103_pretreatment_umi >= 3 | p103_prevax_umi >= 3 | p103_postvax_umi >= 3 | p103_w48_umi >= 3 | p103_w72_umi >= 3)
+
+p104_betas_qc <- p104_betas %>%
+  filter(p104_pretreatment_umi >= 3 | p104_prevax_umi >= 3 | p104_postvax_umi >= 3 | p104_w48_umi >= 3)
+
+p105_betas_qc <- p105_betas %>%
+  filter(p105_pretreatment_umi >= 3 | p105_prevax_umi >= 3 | p105_postvax_umi >= 3 | p105_w48_umi >= 3)
+
+p106_betas_qc <- p106_betas %>%
+  filter(p106_pretreatment_umi >= 3 | p106_prevax_umi >= 3 | p106_postvax_umi >= 3 | p106_w48_umi >= 3)
+
+p108_betas_qc <- p108_betas %>%
+  filter(p108_pretreatment_umi >= 3 | p108_prevax_umi >= 3 | p108_postvax_umi >= 3 | p108_w32_umi >= 3)
+
+p109_betas_qc <- p109_betas %>%
+  filter(p109_pretreatment_umi >= 3 | p109_prevax_umi >= 3 | p109_postvax_umi >= 3 | p109_w48_umi >= 3)
+
+p110_betas_qc <- p110_betas %>%
+  filter(p110_pretreatment_umi >= 3 | p110_prevax_umi >= 3 | p110_postvax_umi >= 3 | p110_w38_umi >= 3)
+
+p111_betas_qc <- p111_betas %>%
+  filter(p111_pretreatment_umi >= 3 | p111_prevax_umi >= 3 | p111_postvax_umi >= 3 | p111_w40_umi >= 3)
+```
+
+## Implement expression filter: >10x lower limit at pre-treatment
+```{r}
+p101_betas_exp <- p101_betas_qc %>%
+  filter(p101_pretreatment > p101_pretreatment_lod*10)
+
+p103_betas_exp <- p103_betas_qc %>%
+  filter(p103_pretreatment > p103_pretreatment_lod*10)
+
+p104_betas_exp <- p104_betas_qc %>%
+  filter(p104_pretreatment > p104_pretreatment_lod*10)
+
+p105_betas_exp <- p105_betas_qc %>%
+  filter(p105_pretreatment > p105_pretreatment_lod*10)
+
+p106_betas_exp <- p106_betas_qc %>%
+  filter(p106_pretreatment > p106_pretreatment_lod*10)
+
+p108_betas_exp <- p108_betas_qc %>%
+  filter(p108_pretreatment > p108_pretreatment_lod*10)
+
+p109_betas_exp <- p109_betas_qc %>%
+  filter(p109_pretreatment > p109_pretreatment_lod*10)
+
+p110_betas_exp <- p110_betas_qc %>%
+  filter(p110_pretreatment > p110_pretreatment_lod*10)
+
+p111_betas_exp <- p111_betas_qc %>%
+  filter(p111_pretreatment > p111_pretreatment_lod*10)
+```
+
+## Implement secondary expression filter: Present at all time points after pre-treatment
+```{r}
+p101_betas_pres <- p101_betas_exp %>%
+  filter(p101_prevax > p101_prevax_lod,
+         p101_postvax > p101_postvax_lod)
+
+p103_betas_pres <- p103_betas_exp %>%
+  filter(p103_prevax > p103_prevax_lod,
+         p103_postvax > p103_postvax_lod,
+         p103_w48 > p103_w48_lod,
+         p103_w72 > p103_w72_lod)
+
+p104_betas_pres <- p104_betas_exp %>%
+  filter(p104_prevax > p104_prevax_lod,
+         p104_postvax > p104_postvax_lod,
+         p104_w48 > p104_w48_lod)
+
+p105_betas_pres <- p105_betas_exp %>%
+  filter(p105_prevax > p105_prevax_lod,
+         p105_postvax > p105_postvax_lod,
+         p105_w48 > p105_w48_lod)
+
+p106_betas_pres <- p106_betas_exp %>%
+  filter(p106_prevax > p106_prevax_lod,
+         p106_postvax > p106_postvax_lod,
+         p106_w48 > p106_w48_lod)
+
+p108_betas_pres <- p108_betas_exp %>%
+  filter(p108_prevax > p108_prevax_lod,
+         p108_postvax > p108_postvax_lod,
+         p108_w32 > p108_w32_lod)
+
+p109_betas_pres <- p109_betas_exp %>%
+  filter(p109_prevax > p109_prevax_lod,
+         p109_postvax > p109_postvax_lod,
+         p109_w48 > p109_w48_lod)
+
+p110_betas_pres <- p110_betas_exp %>%
+  filter(p110_prevax > p110_prevax_lod,
+         p110_postvax > p110_postvax_lod,
+         p110_w38 > p110_w38_lod)
+
+p111_betas_pres <- p111_betas_exp %>%
+  filter(p111_prevax > p111_prevax_lod,
+         p111_postvax > p111_postvax_lod,
+         p111_w40 > p111_w40_lod)
+```
+
+## Save the "Existing" beta clonotypes
+```{r}
+# Add a column for patient
+p101_betas_pres <- p101_betas_pres %>%
+  mutate(Patient = "P101")
+p103_betas_pres <- p103_betas_pres %>%
+  mutate(Patient = "P103")
+p104_betas_pres <- p104_betas_pres %>%
+  mutate(Patient = "P104")
+p105_betas_pres <- p105_betas_pres %>%
+  mutate(Patient = "P105")
+p106_betas_pres <- p106_betas_pres %>%
+  mutate(Patient = "P106")
+p108_betas_pres <- p108_betas_pres %>%
+  mutate(Patient = "P108")
+p109_betas_pres <- p109_betas_pres %>%
+  mutate(Patient = "P109")
+p110_betas_pres <- p110_betas_pres %>%
+  mutate(Patient = "P110")
+p111_betas_pres <- p111_betas_pres %>%
+  mutate(Patient = "P111")
+
+preexisiting_betas_pres <- do.call(rbind, list(p101_betas_pres[,c("Beta_clonotype", "Patient")],
+                                          p103_betas_pres[,c("Beta_clonotype", "Patient")],
+                                          p104_betas_pres[,c("Beta_clonotype", "Patient")],
+                                          p105_betas_pres[,c("Beta_clonotype", "Patient")],
+                                          p106_betas_pres[,c("Beta_clonotype", "Patient")],
+                                          p108_betas_pres[,c("Beta_clonotype", "Patient")],
+                                          p109_betas_pres[,c("Beta_clonotype", "Patient")],
+                                          p110_betas_pres[,c("Beta_clonotype", "Patient")],
+                                          p111_betas_pres[,c("Beta_clonotype", "Patient")]))
+
+write.csv(preexisiting_betas_pres, "PBMC_Existing_Beta_Chains_Part2.csv")
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```

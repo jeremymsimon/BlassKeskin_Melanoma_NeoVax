@@ -1,0 +1,355 @@
+# PBMCs: Determine Significantly Expanded Clones {sec-pbmc-significantly-expanding-clones}
+
+## Set up workspace
+```{r}
+# Load libraries
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(patchwork)
+library(ggprism)
+
+# Load colors
+pt_cols <- readRDS("Part0_Patient_Color.rds")
+pt_fill <- readRDS("Part0_Patient_Fill.rds")
+
+# Functions
+
+# Create contingency table of reads
+#                   TP1    TP2
+# Clone1
+# AllOtherClones
+
+create_contingency_table <- function(betas_df, timepoint1, timepoint2, clone_i){
+  # Get number of reads of clone at time point 1
+  tp1_df <- betas_df[,c("Beta_clonotype", timepoint1)]
+  clone_tp1_umi <- as.numeric(tp1_df[clone_i,2])
+  # If the clone isn't present, set its value to 0
+  if(is.na(clone_tp1_umi)){
+    clone_tp1_umi <- 0
+  }
+  # Get number of reads of all other clones at time point 1
+  allotherclones_tp1_umi <- sum(tp1_df[,2], na.rm = TRUE) - clone_tp1_umi
+  
+  # Get number of reads of clone at time point 2
+  tp2_df <- betas_df[,c("Beta_clonotype", timepoint2)]
+  clone_tp2_umi <- as.numeric(tp2_df[clone_i,2])
+  # If the clone isn't present, set its value to 0
+  if(is.na(clone_tp2_umi)){
+    clone_tp2_umi <- 0
+  }
+  # Get number of reads of all other clones at time point 2
+  allotherclones_tp2_umi <- sum(tp2_df[,2], na.rm = TRUE) - clone_tp2_umi
+  
+  contingency_table <- data.frame(
+    "tp1" = c(clone_tp1_umi, allotherclones_tp1_umi),
+    "tp2" = c(clone_tp2_umi, allotherclones_tp2_umi),
+    row.names = c("clone1", "all_other_clones"),
+    stringsAsFactors = FALSE
+  )
+  
+  return(contingency_table)
+}
+
+run_fishers_test <- function(betas_df, timepoint_prevax, timepoint_postvax, test = "two.sided", correction = "fdr"){
+  pval_df <- data.frame()
+  for(i in c(1:nrow(betas_df))){
+    # Print every 100 clones
+    if(i %% 100 == 0){
+      print(i)
+    }
+    contingency_i <- create_contingency_table(betas_df, timepoint_prevax, timepoint_postvax, i)
+    # Fisher's exact test asking if pre-vax reads are less than post-vax reads
+    pval <- fisher.test(contingency_i, alternative = test)$p.value
+    # # Update direction if more reads in Prevax compared to Postvax
+      # if(contingency_i[1,"tp1"] > contingency_i[1,"tp2"]) {
+      #   direction <- "More_in_prevax"
+      # }
+      # # Update direction if more reads in Prevax compared to Postvax
+      # if(contingency_i[1,"tp2"] > contingency_i[1,"tp1"]) {
+      #   direction <- "More_in_postvax"
+      # }
+      # }
+    # pval_df <- rbind(pval_df, c(pval, direction))
+    pval_df <- rbind(pval_df, pval)
+  }
+  pval_df$Beta_clonotype <- betas_df$Beta_clonotype
+  # colnames(pval_df) <- c("pval", "direction", "Beta_clonotype")
+  colnames(pval_df) <- c("pval", "Beta_clonotype")
+  
+  pval_df <- pval_df %>%
+    mutate(padj = p.adjust(pval, method = correction),
+           sig = case_when(padj < 0.05 ~ "Sig",
+                         padj >= 0.05 ~ "Not sig"))
+  
+  return(pval_df)
+}
+```
+
+## Load all clones
+```{r}
+p101_betas <- read.csv("p101_betas_merged_Part1.csv")
+p103_betas <- read.csv("p103_betas_merged_Part1.csv")
+p104_betas <- read.csv("p104_betas_merged_Part1.csv")
+p105_betas <- read.csv("p105_betas_merged_Part1.csv")
+p106_betas <- read.csv("p106_betas_merged_Part1.csv")
+p108_betas <- read.csv("p108_betas_merged_Part1.csv")
+p109_betas <- read.csv("p109_betas_merged_Part1.csv")
+p110_betas <- read.csv("p110_betas_merged_Part1.csv")
+p111_betas <- read.csv("p111_betas_merged_Part1.csv")
+```
+
+## Calculate number of clones significantly expanded post-vax compared to pre-vax
+```{r}
+# Filter for clones with at least 3 reads post-vax or prevax
+p101_betas_postvax_vs_prevax <- p101_betas %>%
+  filter(p101_postvax_umi >= 3 | p101_prevax_umi >= 3) %>%
+  ungroup()
+p103_betas_postvax_vs_prevax <- p103_betas %>%
+  filter(p103_postvax_umi >= 3 | p103_prevax_umi >= 3) %>%
+  ungroup()
+p104_betas_postvax_vs_prevax <- p104_betas %>%
+  filter(p104_postvax_umi >= 3 | p104_prevax_umi >= 3) %>%
+  ungroup()
+p105_betas_postvax_vs_prevax <- p105_betas %>%
+  filter(p105_postvax_umi >= 3 | p105_prevax_umi >= 3) %>%
+  ungroup()
+p106_betas_postvax_vs_prevax <- p106_betas %>%
+  filter(p106_postvax_umi >= 3 | p106_prevax_umi >= 3) %>%
+  ungroup()
+p108_betas_postvax_vs_prevax <- p108_betas %>%
+  filter(p108_postvax_umi >= 3 | p108_prevax_umi >= 3) %>%
+  ungroup()
+p109_betas_postvax_vs_prevax <- p109_betas %>%
+  filter(p109_postvax_umi >= 3 | p109_prevax_umi >= 3) %>%
+  ungroup()
+p110_betas_postvax_vs_prevax <- p110_betas %>%
+  filter(p110_postvax_umi >= 3 | p110_prevax_umi >= 3) %>%
+  ungroup()
+p111_betas_postvax_vs_prevax <- p111_betas %>%
+  filter(p111_postvax_umi >= 3 | p111_prevax_umi >= 3) %>%
+  ungroup()
+
+# Calculate pval
+p101_pval_postvax_vs_prevax <- run_fishers_test(p101_betas_postvax_vs_prevax, "p101_prevax_umi", "p101_postvax_umi", test = "less", correction = "BY")
+p103_pval_postvax_vs_prevax <- run_fishers_test(p103_betas_postvax_vs_prevax, "p103_prevax_umi", "p103_postvax_umi", test = "less", correction = "BY")
+p104_pval_postvax_vs_prevax <- run_fishers_test(p104_betas_postvax_vs_prevax, "p104_prevax_umi", "p104_postvax_umi", test = "less", correction = "BY")
+p105_pval_postvax_vs_prevax <- run_fishers_test(p105_betas_postvax_vs_prevax, "p105_prevax_umi", "p105_postvax_umi", test = "less", correction = "BY")
+p106_pval_postvax_vs_prevax <- run_fishers_test(p106_betas_postvax_vs_prevax, "p106_prevax_umi", "p106_postvax_umi", test = "less", correction = "BY")
+p108_pval_postvax_vs_prevax <- run_fishers_test(p108_betas_postvax_vs_prevax, "p108_prevax_umi", "p108_postvax_umi", test = "less", correction = "BY")
+p109_pval_postvax_vs_prevax <- run_fishers_test(p109_betas_postvax_vs_prevax, "p109_prevax_umi", "p109_postvax_umi", test = "less", correction = "BY")
+p110_pval_postvax_vs_prevax <- run_fishers_test(p110_betas_postvax_vs_prevax, "p110_prevax_umi", "p110_postvax_umi", test = "less", correction = "BY")
+p111_pval_postvax_vs_prevax <- run_fishers_test(p111_betas_postvax_vs_prevax, "p111_prevax_umi", "p111_postvax_umi", test = "less", correction = "BY")
+```
+
+## Count how many clones are significantly expanded post-vax
+```{r}
+p101_pval_postvax_vs_prevax <- p101_pval_postvax_vs_prevax %>%
+  mutate(Patient = "P101")
+p103_pval_postvax_vs_prevax <- p103_pval_postvax_vs_prevax %>%
+  mutate(Patient = "P103")
+p104_pval_postvax_vs_prevax <- p104_pval_postvax_vs_prevax %>%
+  mutate(Patient = "P104")
+p105_pval_postvax_vs_prevax <- p105_pval_postvax_vs_prevax %>%
+  mutate(Patient = "P105")
+p106_pval_postvax_vs_prevax <- p106_pval_postvax_vs_prevax %>%
+  mutate(Patient = "P106")
+p108_pval_postvax_vs_prevax <- p108_pval_postvax_vs_prevax %>%
+  mutate(Patient = "P108")
+p109_pval_postvax_vs_prevax <- p109_pval_postvax_vs_prevax %>%
+  mutate(Patient = "P109")
+p110_pval_postvax_vs_prevax <- p110_pval_postvax_vs_prevax %>%
+  mutate(Patient = "P110")
+p111_pval_postvax_vs_prevax <- p111_pval_postvax_vs_prevax %>%
+  mutate(Patient = "P111")
+
+pval_postvax_vs_prevax <- do.call(rbind, list(p101_pval_postvax_vs_prevax,
+                                              p103_pval_postvax_vs_prevax,
+                                              p104_pval_postvax_vs_prevax,
+                                              p105_pval_postvax_vs_prevax,
+                                              p106_pval_postvax_vs_prevax,
+                                              p108_pval_postvax_vs_prevax,
+                                              p109_pval_postvax_vs_prevax,
+                                              p110_pval_postvax_vs_prevax,
+                                              p111_pval_postvax_vs_prevax))
+```
+
+## Calculate number of clones significantly expanded post-nivo compared to pre-nivo
+```{r}
+# Filter for clones with at least 3 reads in prevax or pretreatment
+p101_betas_prevax_vs_pretreatment <- p101_betas %>%
+  filter(p101_pretreatment_umi >= 3 | p101_prevax_umi >= 3) %>%
+  ungroup()
+p103_betas_prevax_vs_pretreatment <- p103_betas %>%
+  filter(p103_pretreatment_umi >= 3 | p103_prevax_umi >= 3) %>%
+  ungroup()
+p104_betas_prevax_vs_pretreatment <- p104_betas %>%
+  filter(p104_pretreatment_umi >= 3 | p104_prevax_umi >= 3) %>%
+  ungroup()
+p105_betas_prevax_vs_pretreatment <- p105_betas %>%
+  filter(p105_pretreatment_umi >= 3 | p105_prevax_umi >= 3) %>%
+  ungroup()
+p106_betas_prevax_vs_pretreatment <- p106_betas %>%
+  filter(p106_pretreatment_umi >= 3 | p106_prevax_umi >= 3) %>%
+  ungroup()
+p108_betas_prevax_vs_pretreatment <- p108_betas %>%
+  filter(p108_pretreatment_umi >= 3 | p108_prevax_umi >= 3) %>%
+  ungroup()
+p109_betas_prevax_vs_pretreatment <- p109_betas %>%
+  filter(p109_pretreatment_umi >= 3 | p109_prevax_umi >= 3) %>%
+  ungroup()
+p110_betas_prevax_vs_pretreatment <- p110_betas %>%
+  filter(p110_pretreatment_umi >= 3 | p110_prevax_umi >= 3) %>%
+  ungroup()
+p111_betas_prevax_vs_pretreatment <- p111_betas %>%
+  filter(p111_pretreatment_umi >= 3 | p111_prevax_umi >= 3) %>%
+  ungroup()
+
+# Calculate pval
+p101_pval_prevax_vs_pretreatment <- run_fishers_test(p101_betas_prevax_vs_pretreatment, "p101_pretreatment_umi", "p101_prevax_umi", test = "less", correction = "BY")
+p103_pval_prevax_vs_pretreatment <- run_fishers_test(p103_betas_prevax_vs_pretreatment, "p103_pretreatment_umi", "p103_prevax_umi", test = "less", correction = "BY")
+p104_pval_prevax_vs_pretreatment <- run_fishers_test(p104_betas_prevax_vs_pretreatment, "p104_pretreatment_umi", "p104_prevax_umi", test = "less", correction = "BY")
+p105_pval_prevax_vs_pretreatment <- run_fishers_test(p105_betas_prevax_vs_pretreatment, "p105_pretreatment_umi", "p105_prevax_umi", test = "less", correction = "BY")
+p106_pval_prevax_vs_pretreatment <- run_fishers_test(p106_betas_prevax_vs_pretreatment, "p106_pretreatment_umi", "p106_prevax_umi", test = "less", correction = "BY")
+p108_pval_prevax_vs_pretreatment <- run_fishers_test(p108_betas_prevax_vs_pretreatment, "p108_pretreatment_umi", "p108_prevax_umi", test = "less", correction = "BY")
+p109_pval_prevax_vs_pretreatment <- run_fishers_test(p109_betas_prevax_vs_pretreatment, "p109_pretreatment_umi", "p109_prevax_umi", test = "less", correction = "BY")
+p110_pval_prevax_vs_pretreatment <- run_fishers_test(p110_betas_prevax_vs_pretreatment, "p110_pretreatment_umi", "p110_prevax_umi", test = "less", correction = "BY")
+p111_pval_prevax_vs_pretreatment <- run_fishers_test(p111_betas_prevax_vs_pretreatment, "p111_pretreatment_umi", "p111_prevax_umi", test = "less", correction = "BY")
+```
+
+## Count how many clones are expanded prevax compared to pretreatment
+```{r}
+p101_pval_prevax_vs_pretreatment <- p101_pval_prevax_vs_pretreatment %>%
+  mutate(Patient = "P101")
+p103_pval_prevax_vs_pretreatment <- p103_pval_prevax_vs_pretreatment %>%
+  mutate(Patient = "P103")
+p104_pval_prevax_vs_pretreatment <- p104_pval_prevax_vs_pretreatment %>%
+  mutate(Patient = "P104")
+p105_pval_prevax_vs_pretreatment <- p105_pval_prevax_vs_pretreatment %>%
+  mutate(Patient = "P105")
+p106_pval_prevax_vs_pretreatment <- p106_pval_prevax_vs_pretreatment %>%
+  mutate(Patient = "P106")
+p108_pval_prevax_vs_pretreatment <- p108_pval_prevax_vs_pretreatment %>%
+  mutate(Patient = "P108")
+p109_pval_prevax_vs_pretreatment <- p109_pval_prevax_vs_pretreatment %>%
+  mutate(Patient = "P109")
+p110_pval_prevax_vs_pretreatment <- p110_pval_prevax_vs_pretreatment %>%
+  mutate(Patient = "P110")
+p111_pval_prevax_vs_pretreatment <- p111_pval_prevax_vs_pretreatment %>%
+  mutate(Patient = "P111")
+
+pval_prevax_vs_pretreatment <- do.call(rbind, list(p101_pval_prevax_vs_pretreatment,
+                                              p103_pval_prevax_vs_pretreatment,
+                                              p104_pval_prevax_vs_pretreatment,
+                                              p105_pval_prevax_vs_pretreatment,
+                                              p106_pval_prevax_vs_pretreatment,
+                                              p108_pval_prevax_vs_pretreatment,
+                                              p109_pval_prevax_vs_pretreatment,
+                                              p110_pval_prevax_vs_pretreatment,
+                                              p111_pval_prevax_vs_pretreatment))
+```
+
+## Join results from the significance comparisons after nivolumab vs after vaccine
+```{r}
+n_sig_postvax_vs_prevax <- pval_postvax_vs_prevax %>%
+  filter(sig == "Sig") %>%
+  dplyr::count(sig, Patient) %>%
+  mutate(category = "After Vaccine")
+
+n_sig_prevax_vs_pretreatment <- pval_prevax_vs_pretreatment %>%
+  filter(sig == "Sig") %>%
+  dplyr::count(sig, Patient) %>%
+  mutate(category = "After Nivo")
+
+# Get order based on vax-expanded counts
+pt_order <- n_sig_postvax_vs_prevax %>%
+  arrange(desc(n)) %>%
+  mutate(pt_order = 1:n()) %>%
+  select(Patient, pt_order)
+
+n_sig <- rbind(n_sig_postvax_vs_prevax, n_sig_prevax_vs_pretreatment) %>%
+  # Add a column for ordering
+  left_join(pt_order)
+```
+
+## Check normal distribution assumption
+t test: Paired t-test can be used only when the difference d is normally distributed. This can be checked using Shapiro-Wilk test.
+wilxocon: Differences between paired samples should be distributed symmetrically around the median.
+```{r}
+diff <- n_sig %>%
+  pivot_wider(id_cols = c("Patient"), values_from = "n", names_from = "category") %>%
+  mutate(diff = `After Nivo` - `After Vaccine`)
+
+med <- n_sig %>%
+  pivot_wider(id_cols = c("Patient"), values_from = "n", names_from = "category") %>%
+  mutate(diff = `After Nivo` - `After Vaccine`) %>%
+  summarize(median = median(diff)) %>%
+  pull(median)
+
+n_sig %>%
+  pivot_wider(id_cols = c("Patient"), values_from = "n", names_from = "category") %>%
+  mutate(diff = `After Nivo` - `After Vaccine`) %>%
+  ggplot(aes(x = diff)) +
+  geom_histogram() +
+  geom_vline(xintercept = -106)
+
+shapiro.test(diff$diff)
+# p val is above 0.05, can assume normality
+```
+
+## Create Fig 3A
+```{r, fig.width = 4, fig.height = 5}
+res <- t.test(n ~ category, data = n_sig, paired = TRUE, alternative = "two.sided")
+res
+
+pval_df <- data.frame(
+  group1 = "After Nivo",
+  group2 = "After Vaccine",
+  label = round(res$p.value, 5),
+  y.position = 350
+)
+
+# Original  
+bp <- n_sig %>%
+  ggplot() +
+  geom_boxplot(aes(x = category, y = n)) +
+  geom_point(aes(x = category, y = n, group = Patient, color = Patient), size = 4) +
+  geom_line(aes(x = category, y = n, group = Patient, color = Patient)) +
+  theme_classic() +
+  ylab("Number of significantly expanding clones") +
+  xlab("") +
+  pt_cols +
+  add_pvalue(pval_df) 
+
+bp
+```
+
+## Save pvals
+```{r}
+# Significantly expanded after vaccine
+write.csv(p101_pval_postvax_vs_prevax,"p101_pval_postvax_vs_prevax_Part4.csv", row.names = FALSE)
+write.csv(p103_pval_postvax_vs_prevax,"p103_pval_postvax_vs_prevax_Part4.csv", row.names = FALSE)
+write.csv(p104_pval_postvax_vs_prevax,"p104_pval_postvax_vs_prevax_Part4.csv", row.names = FALSE)
+write.csv(p105_pval_postvax_vs_prevax,"p105_pval_postvax_vs_prevax_Part4.csv", row.names = FALSE)
+write.csv(p106_pval_postvax_vs_prevax,"p106_pval_postvax_vs_prevax_Part4.csv", row.names = FALSE)
+write.csv(p108_pval_postvax_vs_prevax,"p108_pval_postvax_vs_prevax_Part4.csv", row.names = FALSE)
+write.csv(p109_pval_postvax_vs_prevax,"p109_pval_postvax_vs_prevax_Part4.csv", row.names = FALSE)
+write.csv(p110_pval_postvax_vs_prevax,"p110_pval_postvax_vs_prevax_Part4.csv", row.names = FALSE)
+write.csv(p111_pval_postvax_vs_prevax,"p111_pval_postvax_vs_prevax_Part4.csv", row.names = FALSE)
+
+# Significantly expanded after Nivo
+write.csv(p101_pval_prevax_vs_pretreatment,"p101_pval_prevax_vs_pretreatment_Part4.csv", row.names = FALSE)
+write.csv(p103_pval_prevax_vs_pretreatment,"p103_pval_prevax_vs_pretreatment_Part4.csv", row.names = FALSE)
+write.csv(p104_pval_prevax_vs_pretreatment,"p104_pval_prevax_vs_pretreatment_Part4.csv", row.names = FALSE)
+write.csv(p105_pval_prevax_vs_pretreatment,"p105_pval_prevax_vs_pretreatment_Part4.csv", row.names = FALSE)
+write.csv(p106_pval_prevax_vs_pretreatment,"p106_pval_prevax_vs_pretreatment_Part4.csv", row.names = FALSE)
+write.csv(p108_pval_prevax_vs_pretreatment,"p108_pval_prevax_vs_pretreatment_Part4.csv", row.names = FALSE)
+write.csv(p109_pval_prevax_vs_pretreatment,"p109_pval_prevax_vs_pretreatment_Part4.csv", row.names = FALSE)
+write.csv(p110_pval_prevax_vs_pretreatment,"p110_pval_prevax_vs_pretreatment_Part4.csv", row.names = FALSE)
+write.csv(p111_pval_prevax_vs_pretreatment,"p111_pval_prevax_vs_pretreatment_Part4.csv", row.names = FALSE)
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
