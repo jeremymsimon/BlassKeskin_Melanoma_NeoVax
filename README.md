@@ -18,6 +18,7 @@
   * Analysis of IFNg-stimulated T cells [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/IFNg_book/)
   * Analysis of Tumor biopsies [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/Tumor_book/)
   * Analysis of Skin vaccine-site biopsies [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/Skin_book/)
+  * Analysis of HLA/MHC in bulk tumor RNA + WES [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/Tumor_bulkRNA_bulkWES_book)
   * Analysis of bulk TCR clonotypes in longitudinal and vaccine pool stimulated PBMC samples [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/PBMC_bulkTCR_book)
   * Figures derived from analysis of bulk TCR clonotypes in PBMC [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/PBMC_bulkTCR_Figures_book)
   * Analysis of single-cell TCR clonotypes and integrative analyses with scRNA data (_coming soon_)

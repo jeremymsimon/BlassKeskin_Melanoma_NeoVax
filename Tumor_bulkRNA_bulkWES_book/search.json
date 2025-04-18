@@ -1,0 +1,352 @@
+[
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Blass & Keskin (2025): Melanoma NeoVax analysis: Tumor bulk RNA and WES",
+    "section": "",
+    "text": "Introduction\nThis is a book that contains all code to reproduce figures related to bulkRNA and WES analysis of tumor data associated with Blass & Keskin, et al (2025)\nNote that while the code is identical, this book was rendered after final manuscript figures were generated and thus minor differences may arise, particularly for steps that are non-deterministic or rely on random number generators.",
+    "crumbs": [
+      "Introduction"
+    ]
+  },
+  {
+    "objectID": "index.html#enhanced-adjuvanticity-of-a-personal-neoantigen-vaccine-generates-potent-immunity-in-melanoma",
+    "href": "index.html#enhanced-adjuvanticity-of-a-personal-neoantigen-vaccine-generates-potent-immunity-in-melanoma",
+    "title": "Blass & Keskin (2025): Melanoma NeoVax analysis: Tumor bulk RNA and WES",
+    "section": "Enhanced adjuvanticity of a personal neoantigen vaccine generates potent immunity in melanoma",
+    "text": "Enhanced adjuvanticity of a personal neoantigen vaccine generates potent immunity in melanoma\nEryn Blass, Derin B. Keskin, Chloe R. Tu, Cleo Forman, Allison Vanasse, Haley E. Sax, Bohoon Shim, Vipheaviny Chea, Nawoo Kim, Isabel Carulli, Jackson Southard, Haoxiang Lyu, Wesley Lu, Micah Rickles-Young, Alexander B. Afeyan, Oriol Olive, Ambica Mehndiratta, Haley Greenslade, Keerthi Shetty, Joanna Baginska, Ilana Gomez-Diaz, Allison Nau, Kathleen L. Pfaff, Andrew Gans, Elizabeth I Buchbinder, Tamara A. Sussman, Megan L Insco, Charles H. Yoon, Scott J. Rodig, Sachet A. Shukla, Shuqiang Li, Jon C. Aster, David A. Braun, Carrie Cibulskis, Nir Hacohen, Donna S. Neuberg, A Giobbie-Hurder, Kenneth J. Livak, Edward F. Fritsch, Giacomo Oliveira, Jeremy M. Simon, Catherine J. Wu, Patrick A. Ott\n\nAbstract\nPersonalized neoantigen-targeting vaccines have great promise, but current delivery strategies are suboptimal. Since antigen availability and effective T cell priming are critical for maximal immunogenicity, we tested a synthetic long peptide vaccine formulated with Montanide, poly-ICLC, and locally administered ipilimumab in addition to systemic nivolumab in 10 patients with melanoma. These personalized vaccines generated de novo ex vivo T cell responses against the majority of immunizing neoepitopes in all 9 fully vaccinated patients, and ex vivo CD8+ T cell responses in 6 of 9. Vaccination induced hundreds of circulating and intratumoral T cell receptor (TCR) clonotypes that were distinct from those arising after PD-1 inhibition. By linking the vaccine neoantigen specificity of T cell clonotypes with single cell phenotypes in tumors, we demonstrate remodeling of the intratumoral T cell repertoire following vaccination. These observations show that multi-pronged immune adjuvanticity can boost T cell responses to neoantigen-targeting vaccines",
+    "crumbs": [
+      "Introduction"
+    ]
+  },
+  {
+    "objectID": "Assign_Colors.html",
+    "href": "Assign_Colors.html",
+    "title": "1  Save scTCR and bulkTCR colorschemes",
+    "section": "",
+    "text": "1.1 Set up workspace\n# Libraries\nlibrary(Seurat)\n\nLoading required package: SeuratObject\n\n\nLoading required package: sp\n\n\n\nAttaching package: 'SeuratObject'\n\n\nThe following objects are masked from 'package:base':\n\n    intersect, t\n\nlibrary(colorblindr)\n\nLoading required package: colorspace\n\n\nLoading required package: ggplot2\n\nlibrary(RColorBrewer)\nlibrary(paletteer)\nlibrary(dplyr)\n\n\nAttaching package: 'dplyr'\n\n\nThe following objects are masked from 'package:stats':\n\n    filter, lag\n\n\nThe following objects are masked from 'package:base':\n\n    intersect, setdiff, setequal, union\n\nlibrary(tidyverse)\n\n── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──\n✔ forcats   1.0.0     ✔ stringr   1.5.1\n✔ lubridate 1.9.4     ✔ tibble    3.2.1\n✔ purrr     1.0.4     ✔ tidyr     1.3.1\n✔ readr     2.1.5     \n\n\n── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──\n✖ dplyr::filter() masks stats::filter()\n✖ dplyr::lag()    masks stats::lag()\nℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Save scTCR and bulkTCR colorschemes</span>"
+    ]
+  },
+  {
+    "objectID": "Assign_Colors.html#assign-custom-color-scheme",
+    "href": "Assign_Colors.html#assign-custom-color-scheme",
+    "title": "1  Save scTCR and bulkTCR colorschemes",
+    "section": "1.2 Assign custom color scheme",
+    "text": "1.2 Assign custom color scheme\n\nprojectils_fill &lt;- scale_fill_manual(values = c(\"CD4.NaiveLike\" = \"#F7FBFF\", \"CD4.Memory\" = \"#DEEBF7\", \"CD4.Tfh\" = \"#C6DBEF\", \"CD4.Th17\" = \"#9ECAE1\", \"CD4.CTL_GNLY\" = \"#6BAED6\", \"CD4.CTL_EOMES\" = \"#4292C6\", \"CD4.CTL_Exh\" = \"#2171B5\", \"CD4.Treg\" = \"#084594\", \"CD8.NaiveLike\" = \"#FEE5D9\", \"CD8.MAIT\" = \"#FCBBA1\", \"CD8.CM\" = \"#FC9272\", \"CD8.EM\" = \"#FB6A4A\", \"CD8.TEMRA\" = \"#EF3B2C\", \"CD8.TPEX\" = \"#CB181D\", \"CD8.TEX\" = \"#99000D\"))\n\nprojectils_color &lt;- scale_color_manual(values = c(\"CD4.NaiveLike\" = \"#F7FBFF\", \"CD4.Memory\" = \"#DEEBF7\", \"CD4.Tfh\" = \"#C6DBEF\", \"CD4.Th17\" = \"#9ECAE1\", \"CD4.CTL_GNLY\" = \"#6BAED6\", \"CD4.CTL_EOMES\" = \"#4292C6\", \"CD4.CTL_Exh\" = \"#2171B5\", \"CD4.Treg\" = \"#084594\", \"CD8.NaiveLike\" = \"#FEE5D9\", \"CD8.MAIT\" = \"#FCBBA1\", \"CD8.CM\" = \"#FC9272\", \"CD8.EM\" = \"#FB6A4A\", \"CD8.TEMRA\" = \"#EF3B2C\", \"CD8.TPEX\" = \"#CB181D\", \"CD8.TEX\" = \"#99000D\"))",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Save scTCR and bulkTCR colorschemes</span>"
+    ]
+  },
+  {
+    "objectID": "Assign_Colors.html#relevel-functional.cluster-factor-before-plotting",
+    "href": "Assign_Colors.html#relevel-functional.cluster-factor-before-plotting",
+    "title": "1  Save scTCR and bulkTCR colorschemes",
+    "section": "1.3 Relevel functional.cluster factor before plotting",
+    "text": "1.3 Relevel functional.cluster factor before plotting\n\nprojectils_celltypes &lt;- c(\"CD4.NaiveLike\", \"CD4.Memory\", \"CD4.Tfh\", \"CD4.Th17\", \"CD4.CTL_GNLY\", \"CD4.CTL_EOMES\", \"CD4.CTL_Exh\", \"CD4.Treg\", \"CD8.NaiveLike\",\"CD8.MAIT\", \"CD8.CM\", \"CD8.EM\", \"CD8.TEMRA\", \"CD8.TPEX\", \"CD8.TEX\")\n\nprojectils_celltypes &lt;- factor(projectils_celltypes, levels = c(\"CD4.NaiveLike\", \"CD4.Memory\", \"CD4.Tfh\", \"CD4.Th17\", \"CD4.CTL_GNLY\", \"CD4.CTL_EOMES\", \"CD4.CTL_Exh\", \"CD4.Treg\", \"CD8.NaiveLike\",\"CD8.MAIT\", \"CD8.CM\", \"CD8.EM\", \"CD8.TEMRA\", \"CD8.TPEX\", \"CD8.TEX\"))",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Save scTCR and bulkTCR colorschemes</span>"
+    ]
+  },
+  {
+    "objectID": "Assign_Colors.html#check-plots-are-working",
+    "href": "Assign_Colors.html#check-plots-are-working",
+    "title": "1  Save scTCR and bulkTCR colorschemes",
+    "section": "1.4 Check plots are working",
+    "text": "1.4 Check plots are working\n\n# A plot with all the data\np &lt;- projectils_celltypes %&gt;%\n  as.data.frame(functional.cluster = projectils_celltypes) %&gt;%\n  ggplot(aes(x = 1, fill = projectils_celltypes)) + \n  geom_bar() + \n  projectils_fill\np",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Save scTCR and bulkTCR colorschemes</span>"
+    ]
+  },
+  {
+    "objectID": "Assign_Colors.html#check-colors-for-colorblindness",
+    "href": "Assign_Colors.html#check-colors-for-colorblindness",
+    "title": "1  Save scTCR and bulkTCR colorschemes",
+    "section": "1.5 Check colors for colorblindness",
+    "text": "1.5 Check colors for colorblindness\n\ncvd_grid(p)",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Save scTCR and bulkTCR colorschemes</span>"
+    ]
+  },
+  {
+    "objectID": "Assign_Colors.html#save-color-and-fill-environment-variables",
+    "href": "Assign_Colors.html#save-color-and-fill-environment-variables",
+    "title": "1  Save scTCR and bulkTCR colorschemes",
+    "section": "1.6 Save color and fill environment variables",
+    "text": "1.6 Save color and fill environment variables\n\nsaveRDS(projectils_fill, \"Part0_ProjecTILs_Fill.rds\")\nsaveRDS(projectils_color, \"Part0_ProjecTILs_Color.rds\")",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Save scTCR and bulkTCR colorschemes</span>"
+    ]
+  },
+  {
+    "objectID": "Assign_Colors.html#load-ifng-tumor-and-skin-single-cell-data",
+    "href": "Assign_Colors.html#load-ifng-tumor-and-skin-single-cell-data",
+    "title": "1  Save scTCR and bulkTCR colorschemes",
+    "section": "1.7 Load ifng, tumor and skin single cell data",
+    "text": "1.7 Load ifng, tumor and skin single cell data\n\npatients &lt;- c(\"P101\", \"P103\", \"P104\", \"P105\", \"P106\", \"P108\", \"P109\", \"P110\", \"P111\")",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Save scTCR and bulkTCR colorschemes</span>"
+    ]
+  },
+  {
+    "objectID": "Assign_Colors.html#create-factors",
+    "href": "Assign_Colors.html#create-factors",
+    "title": "1  Save scTCR and bulkTCR colorschemes",
+    "section": "1.8 Create factors",
+    "text": "1.8 Create factors\n\npatients &lt;- data.frame(Patient = patients) %&gt;%\n  mutate(Patient = factor(Patient))",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Save scTCR and bulkTCR colorschemes</span>"
+    ]
+  },
+  {
+    "objectID": "Assign_Colors.html#assign-custom-color-scheme-1",
+    "href": "Assign_Colors.html#assign-custom-color-scheme-1",
+    "title": "1  Save scTCR and bulkTCR colorschemes",
+    "section": "1.9 Assign custom color scheme",
+    "text": "1.9 Assign custom color scheme\n\ncolors &lt;- c( \"#59A14F\",  \"#B07AA1FF\", \"#76B7B2FF\", \"#FBB258FF\", \"#DC050C\", \"#F6AAC9FF\", \"#5ca2e5\", \"#615ebf\", \"#826250\") \n\nnames(colors) &lt;- levels(patients$Patient)\npatient_fill &lt;- scale_fill_manual(values = colors)\npatient_color &lt;- scale_color_manual(values = colors)",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Save scTCR and bulkTCR colorschemes</span>"
+    ]
+  },
+  {
+    "objectID": "Assign_Colors.html#check-plots-are-working-1",
+    "href": "Assign_Colors.html#check-plots-are-working-1",
+    "title": "1  Save scTCR and bulkTCR colorschemes",
+    "section": "1.10 Check plots are working",
+    "text": "1.10 Check plots are working\n\n# A plot with all the data\np &lt;- ggplot(patients, aes(x = 1,fill = Patient)) + \n  geom_bar() + \n  patient_fill\np + ggtitle(\"BulkTCR Patients\")\n\n\n\n\n\n\n\n# A plot with the single cell patients: P101, P103, P104 and P108\np2 &lt;- patients[c(1,2,3,6), 1, drop = FALSE] %&gt;%\n  ggplot(aes(x = 1,fill = Patient)) + \n  geom_bar() + \n  patient_fill\np2 + ggtitle(\"scRNA Patients\")",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Save scTCR and bulkTCR colorschemes</span>"
+    ]
+  },
+  {
+    "objectID": "Assign_Colors.html#check-colors-for-colorblindness-1",
+    "href": "Assign_Colors.html#check-colors-for-colorblindness-1",
+    "title": "1  Save scTCR and bulkTCR colorschemes",
+    "section": "1.11 Check colors for colorblindness",
+    "text": "1.11 Check colors for colorblindness\n\ncvd_grid(p)\n\n\n\n\n\n\n\ncvd_grid(p2)",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Save scTCR and bulkTCR colorschemes</span>"
+    ]
+  },
+  {
+    "objectID": "Assign_Colors.html#save-color-and-fill-environment-variables-1",
+    "href": "Assign_Colors.html#save-color-and-fill-environment-variables-1",
+    "title": "1  Save scTCR and bulkTCR colorschemes",
+    "section": "1.12 Save color and fill environment variables",
+    "text": "1.12 Save color and fill environment variables\n\nsaveRDS(patient_fill, \"Part0_Patient_Fill.rds\")\nsaveRDS(patient_color, \"Part0_Patient_Color.rds\")",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Save scTCR and bulkTCR colorschemes</span>"
+    ]
+  },
+  {
+    "objectID": "Assign_Colors.html#get-session-info",
+    "href": "Assign_Colors.html#get-session-info",
+    "title": "1  Save scTCR and bulkTCR colorschemes",
+    "section": "1.13 Get session info",
+    "text": "1.13 Get session info\n\nsessionInfo()\n\nR version 4.3.2 (2023-10-31)\nPlatform: x86_64-pc-linux-gnu (64-bit)\nRunning under: Rocky Linux 8.10 (Green Obsidian)\n\nMatrix products: default\nBLAS/LAPACK: /usr/lib64/libopenblasp-r0.3.15.so;  LAPACK version 3.9.0\n\nlocale:\n [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              \n [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    \n [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   \n [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 \n [9] LC_ADDRESS=C               LC_TELEPHONE=C            \n[11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       \n\ntime zone: America/New_York\ntzcode source: system (glibc)\n\nattached base packages:\n[1] stats     graphics  grDevices utils     datasets  methods   base     \n\nother attached packages:\n [1] lubridate_1.9.4    forcats_1.0.0      stringr_1.5.1      purrr_1.0.4       \n [5] readr_2.1.5        tidyr_1.3.1        tibble_3.2.1       tidyverse_2.0.0   \n [9] dplyr_1.1.4        paletteer_1.6.0    RColorBrewer_1.1-3 colorblindr_0.1.0 \n[13] ggplot2_3.5.1      colorspace_2.1-1   Seurat_5.1.0       SeuratObject_5.0.2\n[17] sp_2.2-0          \n\nloaded via a namespace (and not attached):\n  [1] deldir_2.0-4           pbapply_1.7-2          gridExtra_2.3         \n  [4] rematch2_2.1.2         rlang_1.1.5            magrittr_2.0.3        \n  [7] RcppAnnoy_0.0.22       spatstat.geom_3.3-2    matrixStats_1.5.0     \n [10] ggridges_0.5.6         compiler_4.3.2         png_0.1-8             \n [13] vctrs_0.6.5            reshape2_1.4.4         pkgconfig_2.0.3       \n [16] fastmap_1.2.0          labeling_0.4.3         promises_1.3.2        \n [19] rmarkdown_2.29         tzdb_0.5.0             xfun_0.50             \n [22] jsonlite_1.8.9         goftest_1.2-3          later_1.4.1           \n [25] spatstat.utils_3.1-0   irlba_2.3.5.1          parallel_4.3.2        \n [28] cluster_2.1.8.1        R6_2.6.1               ica_1.0-3             \n [31] stringi_1.8.4          spatstat.data_3.1-2    reticulate_1.42.0     \n [34] parallelly_1.41.0      spatstat.univar_3.0-0  lmtest_0.9-40         \n [37] scattermore_1.2        Rcpp_1.0.14            knitr_1.49            \n [40] tensor_1.5             future.apply_1.11.3    zoo_1.8-13            \n [43] sctransform_0.4.1      timechange_0.3.0       httpuv_1.6.15         \n [46] Matrix_1.6-5           splines_4.3.2          igraph_2.0.3          \n [49] tidyselect_1.2.1       rstudioapi_0.17.1      abind_1.4-8           \n [52] spatstat.random_3.3-1  codetools_0.2-20       miniUI_0.1.1.1        \n [55] spatstat.explore_3.3-2 listenv_0.9.1          lattice_0.22-7        \n [58] plyr_1.8.9             withr_3.0.2            shiny_1.9.1           \n [61] ROCR_1.0-11            evaluate_1.0.1         Rtsne_0.17            \n [64] future_1.34.0          fastDummies_1.7.5      survival_3.8-3        \n [67] polyclip_1.10-7        fitdistrplus_1.2-2     pillar_1.10.1         \n [70] KernSmooth_2.23-26     plotly_4.10.4          generics_0.1.3        \n [73] RcppHNSW_0.6.0         hms_1.1.3              munsell_0.5.1         \n [76] scales_1.3.0           globals_0.16.3         xtable_1.8-4          \n [79] glue_1.8.0             lazyeval_0.2.2         tools_4.3.2           \n [82] data.table_1.15.4      RSpectra_0.16-2        RANN_2.6.2            \n [85] leiden_0.4.3.1         dotCall64_1.2          cowplot_1.1.3         \n [88] grid_4.3.2             nlme_3.1-168           patchwork_1.3.0       \n [91] cli_3.6.3              spatstat.sparse_3.1-0  spam_2.11-1           \n [94] viridisLite_0.4.2      uwot_0.2.3             gtable_0.3.6          \n [97] digest_0.6.37          progressr_0.15.1       ggrepel_0.9.5         \n[100] htmlwidgets_1.6.4      farver_2.1.2           htmltools_0.5.8.1     \n[103] lifecycle_1.0.4        httr_1.4.7             mime_0.13             \n[106] MASS_7.3-60.0.1",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>Save scTCR and bulkTCR colorschemes</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkRNA_Heatmap_S7DE.html",
+    "href": "Tumor_bulkRNA_Heatmap_S7DE.html",
+    "title": "2  bulkRNA: KEGG Gene Set Expression",
+    "section": "",
+    "text": "2.1 Set up workspace\n# Libraries\nlibrary(msigdbr)\nlibrary(viridis)\n\nLoading required package: viridisLite\n\nlibrary(dplyr)\n\n\nAttaching package: 'dplyr'\n\n\nThe following objects are masked from 'package:stats':\n\n    filter, lag\n\n\nThe following objects are masked from 'package:base':\n\n    intersect, setdiff, setequal, union\n\nlibrary(ggplot2)\nlibrary(tidyverse)\n\n── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──\n✔ forcats   1.0.0     ✔ stringr   1.5.1\n✔ lubridate 1.9.4     ✔ tibble    3.2.1\n✔ purrr     1.0.4     ✔ tidyr     1.3.1\n✔ readr     2.1.5     \n\n\n── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──\n✖ dplyr::filter() masks stats::filter()\n✖ dplyr::lag()    masks stats::lag()\nℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors\n\nlibrary(ComplexHeatmap)\n\nLoading required package: grid\n========================================\nComplexHeatmap version 2.18.0\nBioconductor page: http://bioconductor.org/packages/ComplexHeatmap/\nGithub page: https://github.com/jokergoo/ComplexHeatmap\nDocumentation: http://jokergoo.github.io/ComplexHeatmap-reference\n\nIf you use it in published research, please cite either one:\n- Gu, Z. Complex Heatmap Visualization. iMeta 2022.\n- Gu, Z. Complex heatmaps reveal patterns and correlations in multidimensional \n    genomic data. Bioinformatics 2016.\n\n\nThe new InteractiveComplexHeatmap package can directly export static \ncomplex heatmaps into an interactive Shiny app with zero effort. Have a try!\n\nThis message can be suppressed by:\n  suppressPackageStartupMessages(library(ComplexHeatmap))\n========================================\n\nlibrary(circlize)\n\n========================================\ncirclize version 0.4.16\nCRAN page: https://cran.r-project.org/package=circlize\nGithub page: https://github.com/jokergoo/circlize\nDocumentation: https://jokergoo.github.io/circlize_book/book/\n\nIf you use it in published research, please cite:\nGu, Z. circlize implements and enhances circular visualization\n  in R. Bioinformatics 2014.\n\nThis message can be suppressed by:\n  suppressPackageStartupMessages(library(circlize))\n========================================",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>bulkRNA: KEGG Gene Set Expression</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkRNA_Heatmap_S7DE.html#load-pt-and-projectils-colors",
+    "href": "Tumor_bulkRNA_Heatmap_S7DE.html#load-pt-and-projectils-colors",
+    "title": "2  bulkRNA: KEGG Gene Set Expression",
+    "section": "2.2 Load pt and projecTILs colors",
+    "text": "2.2 Load pt and projecTILs colors\n\npt_cols &lt;- readRDS(\"Part0_Patient_Fill.rds\")\npt_fill &lt;- readRDS(\"Part0_Patient_Fill.rds\")",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>bulkRNA: KEGG Gene Set Expression</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkRNA_Heatmap_S7DE.html#load-rsem-results",
+    "href": "Tumor_bulkRNA_Heatmap_S7DE.html#load-rsem-results",
+    "title": "2  bulkRNA: KEGG Gene Set Expression",
+    "section": "2.3 Load RSEM results",
+    "text": "2.3 Load RSEM results\n\np101_rsem &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-101.rsem.genes.results.gz\", header = TRUE) %&gt;%\n  mutate(gene_id_stable = str_split_i(gene_id, fixed(\".\"), 1)) %&gt;%\n  dplyr::rename(\"P101\" = \"TPM\")\np103_rsem &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-103.rsem.genes.results.gz\", header = TRUE) %&gt;%\n  mutate(gene_id_stable = str_split_i(gene_id, fixed(\".\"), 1)) %&gt;%\n  dplyr::rename(\"P103\" = \"TPM\")\np104_rsem &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-104.rsem.genes.results.gz\", header = TRUE) %&gt;%\n  mutate(gene_id_stable = str_split_i(gene_id, fixed(\".\"), 1)) %&gt;%\n  dplyr::rename(\"P104\" = \"TPM\")\np105_rsem &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-105.rsem.genes.results.gz\", header = TRUE) %&gt;%\n  mutate(gene_id_stable = str_split_i(gene_id, fixed(\".\"), 1)) %&gt;%\n  dplyr::rename(\"P105\" = \"TPM\")\np106_rsem &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-106.rsem.genes.results.gz\", header = TRUE) %&gt;%\n  mutate(gene_id_stable = str_split_i(gene_id, fixed(\".\"), 1)) %&gt;%\n  dplyr::rename(\"P106\" = \"TPM\")\np108_rsem &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-108.rsem.genes.results.gz\", header = TRUE) %&gt;%\n  mutate(gene_id_stable = str_split_i(gene_id, fixed(\".\"), 1)) %&gt;%\n  dplyr::rename(\"P108\" = \"TPM\")\np109_rsem &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-109_Tumor_WES_01-18279-109_Normal_WES_01.rsem.genes.results.gz\", header = TRUE) %&gt;%\n  mutate(gene_id_stable = str_split_i(gene_id, fixed(\".\"), 1)) %&gt;%\n  dplyr::rename(\"P109\" = \"TPM\")\np110_rsem &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-110_Tumor_WES_01-18279-110-Normal_WES_01.rsem.genes.results.gz\", header = TRUE) %&gt;%\n  mutate(gene_id_stable = str_split_i(gene_id, fixed(\".\"), 1)) %&gt;%\n  dplyr::rename(\"P110\" = \"TPM\")\np111_rsem &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-111_Tumor_WES_01-18279-111-Normal_WES_01.rsem.genes.results.gz\", header = TRUE) %&gt;%\n  mutate(gene_id_stable = str_split_i(gene_id, fixed(\".\"), 1)) %&gt;%\n  dplyr::rename(\"P111\" = \"TPM\")",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>bulkRNA: KEGG Gene Set Expression</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkRNA_Heatmap_S7DE.html#load-antigenprocessingpresentation-mhc-class-i-mhc-class-ii-pathways",
+    "href": "Tumor_bulkRNA_Heatmap_S7DE.html#load-antigenprocessingpresentation-mhc-class-i-mhc-class-ii-pathways",
+    "title": "2  bulkRNA: KEGG Gene Set Expression",
+    "section": "2.4 Load AntigenProcessingPresentation, MHC class I, MHC class II pathways",
+    "text": "2.4 Load AntigenProcessingPresentation, MHC class I, MHC class II pathways\n\nantigen_processing_geneset &lt;- msigdbr(species = \"Homo sapiens\") %&gt;%\n  filter(gs_name == \"KEGG_ANTIGEN_PROCESSING_AND_PRESENTATION\") %&gt;%\n  select(human_gene_symbol, ensembl_gene)\n\n# HLA class I (A-C)\nhla_class1 &lt;- msigdbr(species = \"Homo sapiens\") %&gt;%\n  distinct(gene_symbol, ensembl_gene) %&gt;%\n  filter(str_detect(gene_symbol, \"^HLA-(A|B|C)\"))\n\n# HLA class II (ie any HLA that is HLA-D*)\nhla_class2 &lt;- msigdbr(species = \"Homo sapiens\") %&gt;%\n  distinct(gene_symbol, ensembl_gene) %&gt;%\n  filter(str_detect(gene_symbol, \"^HLA-(?=D)\"))\n\n# Remove genes that are in HLA class II or are HLA A-C from the KEGG antigen processing gene list since it's a duplication\nantigen_processing_geneset &lt;- antigen_processing_geneset %&gt;%\n  filter(!(human_gene_symbol %in% hla_class1$gene_symbol),\n         !(human_gene_symbol %in% hla_class2$gene_symbol))",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>bulkRNA: KEGG Gene Set Expression</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkRNA_Heatmap_S7DE.html#extract-kegg-antigen-processing-genes",
+    "href": "Tumor_bulkRNA_Heatmap_S7DE.html#extract-kegg-antigen-processing-genes",
+    "title": "2  bulkRNA: KEGG Gene Set Expression",
+    "section": "2.5 Extract KEGG antigen processing genes",
+    "text": "2.5 Extract KEGG antigen processing genes\n\np101_antigen_processing_rsem &lt;- p101_rsem %&gt;%\n  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)\np103_antigen_processing_rsem &lt;- p103_rsem %&gt;%\n  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)\np104_antigen_processing_rsem &lt;- p104_rsem %&gt;%\n  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)\np105_antigen_processing_rsem &lt;- p105_rsem %&gt;%\n  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)\np106_antigen_processing_rsem &lt;- p106_rsem %&gt;%\n  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)\np108_antigen_processing_rsem &lt;- p108_rsem %&gt;%\n  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)\np109_antigen_processing_rsem &lt;- p109_rsem %&gt;%\n  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)\np110_antigen_processing_rsem &lt;- p110_rsem %&gt;%\n  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)\np111_antigen_processing_rsem &lt;- p111_rsem %&gt;%\n  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)\n\nall_antigen_processing_rsem &lt;- p101_antigen_processing_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P101\")] %&gt;%\n  full_join(p103_antigen_processing_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P103\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p104_antigen_processing_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P104\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p105_antigen_processing_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P105\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p106_antigen_processing_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P106\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p108_antigen_processing_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P108\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p109_antigen_processing_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P109\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p110_antigen_processing_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P110\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p111_antigen_processing_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P111\")], by = c(\"gene_id\", \"gene_id_stable\"))  %&gt;%\n  mutate(Type = \"AntigenProcessingPresentation\")\n\n## For the 4 pt: Remove lowly expressed genes, ie. gene was expressed (&gt;=1 TPM) in at least one patient\nbest_antigen_processing_rsem_4pt &lt;- all_antigen_processing_rsem %&gt;%\n  rowwise() %&gt;%\n  filter((P101 &gt;= 1) | (P103 &gt;= 1) | (P104 &gt;= 1) | (P108 &gt;= 1))\n\n## For all pt: Remove lowly expressed genes, ie. gene was expressed (&gt;=1 TPM) in at least one patient\nbest_antigen_processing_rsem_9pt &lt;- all_antigen_processing_rsem %&gt;%\n  rowwise() %&gt;%\n  filter((P101 &gt;= 1) | (P103 &gt;= 1) | (P104 &gt;= 1) |  (P105 &gt;= 1) | (P106 &gt;= 1) | (P108 &gt;= 1) | (P109 &gt;= 1) | (P110 &gt;= 1) | (P111 &gt;= 1))",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>bulkRNA: KEGG Gene Set Expression</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkRNA_Heatmap_S7DE.html#extract-top-hla-class-i-ie-hla-a-hla-b-hla-c",
+    "href": "Tumor_bulkRNA_Heatmap_S7DE.html#extract-top-hla-class-i-ie-hla-a-hla-b-hla-c",
+    "title": "2  bulkRNA: KEGG Gene Set Expression",
+    "section": "2.6 Extract top HLA class I (ie HLA-A, HLA-B, HLA-C)",
+    "text": "2.6 Extract top HLA class I (ie HLA-A, HLA-B, HLA-C)\n\np101_class1_rsem &lt;- p101_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class1$ensembl_gene)\np103_class1_rsem &lt;- p103_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class1$ensembl_gene)\np104_class1_rsem &lt;- p104_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class1$ensembl_gene)\np105_class1_rsem &lt;- p105_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class1$ensembl_gene)\np106_class1_rsem &lt;- p106_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class1$ensembl_gene)\np108_class1_rsem &lt;- p108_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class1$ensembl_gene)\np109_class1_rsem &lt;- p109_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class1$ensembl_gene)\np110_class1_rsem &lt;- p110_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class1$ensembl_gene)\np111_class1_rsem &lt;- p111_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class1$ensembl_gene)\n\nall_class1_rsem &lt;- p101_class1_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P101\")] %&gt;%\n  full_join(p103_class1_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P103\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p104_class1_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P104\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p105_class1_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P105\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p106_class1_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P106\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p108_class1_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P108\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p109_class1_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P109\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p110_class1_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P110\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p111_class1_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P111\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  mutate(Type = \"ClassI\")",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>bulkRNA: KEGG Gene Set Expression</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkRNA_Heatmap_S7DE.html#extract-hla-class-ii-ie-any-hla-d",
+    "href": "Tumor_bulkRNA_Heatmap_S7DE.html#extract-hla-class-ii-ie-any-hla-d",
+    "title": "2  bulkRNA: KEGG Gene Set Expression",
+    "section": "2.7 Extract HLA class II (ie any HLA-D*)",
+    "text": "2.7 Extract HLA class II (ie any HLA-D*)\n\np101_class2_rsem &lt;- p101_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class2$ensembl_gene)\np103_class2_rsem &lt;- p103_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class2$ensembl_gene)\np104_class2_rsem &lt;- p104_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class2$ensembl_gene)\np105_class2_rsem &lt;- p105_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class2$ensembl_gene)\np106_class2_rsem &lt;- p106_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class2$ensembl_gene)\np108_class2_rsem &lt;- p108_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class2$ensembl_gene)\np109_class2_rsem &lt;- p109_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class2$ensembl_gene)\np110_class2_rsem &lt;- p110_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class2$ensembl_gene)\np111_class2_rsem &lt;- p111_rsem %&gt;%\n  filter(gene_id_stable %in% hla_class2$ensembl_gene)\n\nall_class2_rsem &lt;- p101_class2_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P101\")] %&gt;%\n  full_join(p103_class2_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P103\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p104_class2_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P104\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p105_class2_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P105\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p106_class2_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P106\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p108_class2_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P108\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p109_class2_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P109\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p110_class2_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P110\")], by = c(\"gene_id\", \"gene_id_stable\")) %&gt;%\n  full_join(p111_class2_rsem[,c(\"gene_id\", \"gene_id_stable\", \"P111\")], by = c(\"gene_id\", \"gene_id_stable\"))  %&gt;%\n  mutate(Type = \"ClassII\")\n\n## For the 4 pt: Remove lowly expressed genes, ie. gene was expressed (&gt;=1 TPM) in at least one patient\nbest_class2_rsem_4pt &lt;- all_class2_rsem %&gt;%\n  rowwise() %&gt;%\n  filter((P101 &gt;= 1) | (P103 &gt;= 1) | (P104 &gt;= 1) | (P108 &gt;= 1))",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>bulkRNA: KEGG Gene Set Expression</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkRNA_Heatmap_S7DE.html#plot-classi-ii-and-antigen-presentation-from-main-4-patients-in-a-boxplot-for-fig-s7d",
+    "href": "Tumor_bulkRNA_Heatmap_S7DE.html#plot-classi-ii-and-antigen-presentation-from-main-4-patients-in-a-boxplot-for-fig-s7d",
+    "title": "2  bulkRNA: KEGG Gene Set Expression",
+    "section": "2.8 Plot classI, II, and antigen presentation from main 4 patients in a boxplot for Fig S7D",
+    "text": "2.8 Plot classI, II, and antigen presentation from main 4 patients in a boxplot for Fig S7D\n\nbest_4pt.boxplot &lt;- best_antigen_processing_rsem_4pt %&gt;%\n  rbind(all_class1_rsem) %&gt;%\n  rbind(best_class2_rsem_4pt) %&gt;%\n  ungroup() %&gt;%\n  mutate(Type = str_replace(Type, \"AntigenProcessingPresentation\", \"AntigenProcessing\\nPresentation\"))\n\nboxplot &lt;- best_4pt.boxplot %&gt;%\n  select(\"P101\", \"P103\", \"P104\", \"P108\", Type) %&gt;%\n  pivot_longer(cols = c(\"P101\", \"P103\", \"P104\", \"P108\"), names_to = \"Patient\") %&gt;%\n  ggplot(aes(x = Patient, y = value, fill = Patient)) +\n    geom_boxplot() +\n    geom_point() +\n    scale_y_log10() +\n  facet_wrap(~Type, scales = \"free_y\") +\n  theme_bw() +\n  pt_fill +\n  annotation_logticks(sides='l', outside = TRUE) +\n  theme(axis.text.y = element_text(margin = margin(r = 7))) +\n  ylab(\"TPM\") +\n  coord_cartesian(clip = \"off\")\n\nboxplot\n\nWarning in scale_y_log10(): log-10 transformation introduced infinite values.\nlog-10 transformation introduced infinite values.\n\n\nWarning: Removed 13 rows containing non-finite outside the scale range\n(`stat_boxplot()`).\n\n\n\n\n\n\n\n\n# Get gene symbols\ncolnames(antigen_processing_geneset) &lt;- c(\"gene_symbol\", \"ensembl_gene\")\ngenes &lt;- do.call(rbind, list(antigen_processing_geneset, hla_class1, hla_class2))\n\nboxplot_genelist_4pt &lt;- best_4pt.boxplot %&gt;%\n  select(gene_id, gene_id_stable, P101, P103, P104, P108, Type) %&gt;%\n  left_join(genes, by = c(\"gene_id_stable\" = \"ensembl_gene\"))",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>bulkRNA: KEGG Gene Set Expression</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkRNA_Heatmap_S7DE.html#create-a-heatmap-of-the-antigen-processing-class-i-and-class-ii-presentation",
+    "href": "Tumor_bulkRNA_Heatmap_S7DE.html#create-a-heatmap-of-the-antigen-processing-class-i-and-class-ii-presentation",
+    "title": "2  bulkRNA: KEGG Gene Set Expression",
+    "section": "2.9 Create a heatmap of the antigen processing, class I and class II presentation",
+    "text": "2.9 Create a heatmap of the antigen processing, class I and class II presentation\nAdding class I and class II genes first so any genes in both classI/II and AntigenProcessingPresentation are assigned to classI/II automatically",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>bulkRNA: KEGG Gene Set Expression</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkRNA_Heatmap_S7DE.html#select-4-patients-and-select-the-subset-of-genes-that-are-expressed-in-our-4-patients",
+    "href": "Tumor_bulkRNA_Heatmap_S7DE.html#select-4-patients-and-select-the-subset-of-genes-that-are-expressed-in-our-4-patients",
+    "title": "2  bulkRNA: KEGG Gene Set Expression",
+    "section": "2.10 Select 4 patients and select the subset of genes that are expressed in our 4 patients",
+    "text": "2.10 Select 4 patients and select the subset of genes that are expressed in our 4 patients\n\nkegg_hla_4pt.mat &lt;- boxplot_genelist_4pt %&gt;%\n  select(gene_symbol, P101, P103, P104, P108) %&gt;%\n  column_to_rownames(\"gene_symbol\") %&gt;%\n  as.matrix()",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>bulkRNA: KEGG Gene Set Expression</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkRNA_Heatmap_S7DE.html#create-column-annotation",
+    "href": "Tumor_bulkRNA_Heatmap_S7DE.html#create-column-annotation",
+    "title": "2  bulkRNA: KEGG Gene Set Expression",
+    "section": "2.11 Create column annotation",
+    "text": "2.11 Create column annotation\n\nmd_4pt &lt;- data.frame(TPM_name = c(\"P101\", \"P103\", \"P104\", \"P108\"),\n                    Patient = c(\"P101\", \"P103\", \"P104\", \"P108\")) %&gt;%\n  column_to_rownames(\"TPM_name\")",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>bulkRNA: KEGG Gene Set Expression</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkRNA_Heatmap_S7DE.html#create-heatmap-of-kegg-antigen-presentation-processing-hla-class-i-and-hla-class-ii-for-4-pt-for-s7e",
+    "href": "Tumor_bulkRNA_Heatmap_S7DE.html#create-heatmap-of-kegg-antigen-presentation-processing-hla-class-i-and-hla-class-ii-for-4-pt-for-s7e",
+    "title": "2  bulkRNA: KEGG Gene Set Expression",
+    "section": "2.12 Create heatmap of KEGG antigen presentation + processing, HLA class I, and HLA class II for 4 pt for S7E",
+    "text": "2.12 Create heatmap of KEGG antigen presentation + processing, HLA class I, and HLA class II for 4 pt for S7E\n\n# Double check that cells in metadata and matrix are in the same order\ntable(rownames(md_4pt) == colnames(kegg_hla_4pt.mat))\n\n\nTRUE \n   4 \n\ncolumn_annot_4pt.ha = HeatmapAnnotation(Patient = md_4pt$Patient,\n                                    col = list(Patient = c(\"P101\" = \"#59A14F\", \"P103\" = \"#B07AA1FF\", \"P104\" = \"#76B7B2FF\", \"P108\" = \"#F6AAC9FF\")))\n\n# Subset/Reorder so that cells in the gene list and matrix are in the same order\nboxplot_genelist_4pt &lt;- boxplot_genelist_4pt[match(rownames(kegg_hla_4pt.mat), boxplot_genelist_4pt$gene_symbol),] %&gt;%\n  mutate(Type = str_replace(Type, \"AntigenProcessing\\nPresentation\", \"AntigenProcessingPresentation\"),\n         Type = factor(Type, levels = c(\"ClassI\", \"ClassII\", \"AntigenProcessingPresentation\")))\n\nkegg_hla_4pt.log10 &lt;- log10(kegg_hla_4pt.mat+1)\n\nheatmap_viridis &lt;- Heatmap(kegg_hla_4pt.log10,\n        show_row_dend = FALSE,\n        show_row_names = TRUE,\n        row_names_gp = gpar(fontsize = 6),\n        row_title_rot = 90,\n        show_column_dend = FALSE,\n        show_column_names = FALSE,\n        top_annotation = column_annot_4pt.ha,\n        row_split = boxplot_genelist_4pt$Type,\n        cluster_row_slices = FALSE,\n        name = \"log10(TPM+1)\",\n        col = colorRamp2(c(0, 1, 1.4, 2.1, 2.4, 2.7, 2.9, 3.3), c(\"#440154FF\", \"#482878FF\", \"#3E4A89FF\", \"#35B779FF\", \"#6DCD59FF\", \"#B4DE2CFF\", \"#E3E418FF\", \"#FDE725FF\")))\n\nheatmap_viridis",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>bulkRNA: KEGG Gene Set Expression</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkRNA_Heatmap_S7DE.html#get-session-info",
+    "href": "Tumor_bulkRNA_Heatmap_S7DE.html#get-session-info",
+    "title": "2  bulkRNA: KEGG Gene Set Expression",
+    "section": "2.13 Get session info",
+    "text": "2.13 Get session info\n\nsessionInfo()\n\nR version 4.3.2 (2023-10-31)\nPlatform: x86_64-pc-linux-gnu (64-bit)\nRunning under: Rocky Linux 8.10 (Green Obsidian)\n\nMatrix products: default\nBLAS/LAPACK: /usr/lib64/libopenblasp-r0.3.15.so;  LAPACK version 3.9.0\n\nlocale:\n [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              \n [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    \n [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   \n [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 \n [9] LC_ADDRESS=C               LC_TELEPHONE=C            \n[11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       \n\ntime zone: America/New_York\ntzcode source: system (glibc)\n\nattached base packages:\n[1] grid      stats     graphics  grDevices utils     datasets  methods  \n[8] base     \n\nother attached packages:\n [1] circlize_0.4.16       ComplexHeatmap_2.18.0 lubridate_1.9.4      \n [4] forcats_1.0.0         stringr_1.5.1         purrr_1.0.4          \n [7] readr_2.1.5           tidyr_1.3.1           tibble_3.2.1         \n[10] tidyverse_2.0.0       ggplot2_3.5.1         dplyr_1.1.4          \n[13] viridis_0.6.5         viridisLite_0.4.2     msigdbr_7.5.1        \n\nloaded via a namespace (and not attached):\n [1] gtable_0.3.6        babelgene_22.9      shape_1.4.6.1      \n [4] rjson_0.2.23        xfun_0.50           htmlwidgets_1.6.4  \n [7] GlobalOptions_0.1.2 tzdb_0.5.0          Cairo_1.6-2        \n[10] vctrs_0.6.5         tools_4.3.2         generics_0.1.3     \n[13] stats4_4.3.2        parallel_4.3.2      cluster_2.1.8.1    \n[16] pkgconfig_2.0.3     RColorBrewer_1.1-3  S4Vectors_0.40.2   \n[19] lifecycle_1.0.4     compiler_4.3.2      farver_2.1.2       \n[22] munsell_0.5.1       codetools_0.2-20    clue_0.3-66        \n[25] htmltools_0.5.8.1   pillar_1.10.1       crayon_1.5.3       \n[28] magick_2.8.6        iterators_1.0.14    foreach_1.5.2      \n[31] tidyselect_1.2.1    digest_0.6.37       stringi_1.8.4      \n[34] fastmap_1.2.0       colorspace_2.1-1    cli_3.6.3          \n[37] magrittr_2.0.3      withr_3.0.2         scales_1.3.0       \n[40] timechange_0.3.0    rmarkdown_2.29      matrixStats_1.5.0  \n[43] gridExtra_2.3       png_0.1-8           GetoptLong_1.0.5   \n[46] hms_1.1.3           evaluate_1.0.1      knitr_1.49         \n[49] IRanges_2.36.0      doParallel_1.0.17   rlang_1.1.5        \n[52] Rcpp_1.0.14         glue_1.8.0          BiocGenerics_0.48.1\n[55] rstudioapi_0.17.1   jsonlite_1.8.9      R6_2.6.1",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>bulkRNA: KEGG Gene Set Expression</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkWES_Chromosome_Deletion_S1CDE.html",
+    "href": "Tumor_bulkWES_Chromosome_Deletion_S1CDE.html",
+    "title": "3  bulkWES: Tumor Chromosome Deletion",
+    "section": "",
+    "text": "3.1 Set up workspace\n# Libraries\nlibrary(dplyr)\n\n\nAttaching package: 'dplyr'\n\n\nThe following objects are masked from 'package:stats':\n\n    filter, lag\n\n\nThe following objects are masked from 'package:base':\n\n    intersect, setdiff, setequal, union\n\nlibrary(tidyverse)\n\n── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──\n✔ forcats   1.0.0     ✔ readr     2.1.5\n✔ ggplot2   3.5.1     ✔ stringr   1.5.1\n✔ lubridate 1.9.4     ✔ tibble    3.2.1\n✔ purrr     1.0.4     ✔ tidyr     1.3.1\n\n\n── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──\n✖ dplyr::filter() masks stats::filter()\n✖ dplyr::lag()    masks stats::lag()\nℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors\n\nlibrary(ggplot2)",
+    "crumbs": [
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>bulkWES: Tumor Chromosome Deletion</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkWES_Chromosome_Deletion_S1CDE.html#load-absolute_seg_file-variable-in-terra-from-all-patients",
+    "href": "Tumor_bulkWES_Chromosome_Deletion_S1CDE.html#load-absolute_seg_file-variable-in-terra-from-all-patients",
+    "title": "3  bulkWES: Tumor Chromosome Deletion",
+    "section": "3.2 Load “absolute_seg_file” variable in Terra from all patients",
+    "text": "3.2 Load “absolute_seg_file” variable in Terra from all patients\n\np101_absolute_seg_file &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-101.segtab.txt\", header = TRUE)\np103_absolute_seg_file &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-103.segtab.txt\", header = TRUE)\np104_absolute_seg_file &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-104.segtab.txt\", header = TRUE)\np105_absolute_seg_file &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-105.segtab.txt\", header = TRUE)\np106_absolute_seg_file &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-106.segtab.txt\", header = TRUE)\np108_absolute_seg_file &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-108.segtab.txt\", header = TRUE)\np109_absolute_seg_file &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-109_Tumor_WES_01-18279-109_Normal_WES_01.segtab.txt\", header = TRUE)\np110_absolute_seg_file &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-110_Tumor_WES_01-18279-110-Normal_WES_01.segtab.txt\", header = TRUE)\np111_absolute_seg_file &lt;- read.table(\"/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-111_Tumor_WES_01-18279-111-Normal_WES_01.segtab.txt\", header = TRUE)",
+    "crumbs": [
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>bulkWES: Tumor Chromosome Deletion</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkWES_Chromosome_Deletion_S1CDE.html#format-seg-files",
+    "href": "Tumor_bulkWES_Chromosome_Deletion_S1CDE.html#format-seg-files",
+    "title": "3  bulkWES: Tumor Chromosome Deletion",
+    "section": "3.3 Format seg files",
+    "text": "3.3 Format seg files\n\nabsolute_seg_file &lt;- do.call(rbind, list(p101_absolute_seg_file, p103_absolute_seg_file, p104_absolute_seg_file, p105_absolute_seg_file, p106_absolute_seg_file, p108_absolute_seg_file, p109_absolute_seg_file, p110_absolute_seg_file, p111_absolute_seg_file))\n\nunique(absolute_seg_file$sample)\n\n[1] \"18279-101\"                                     \n[2] \"18279-103\"                                     \n[3] \"18279-104\"                                     \n[4] \"18279-105\"                                     \n[5] \"18279-106\"                                     \n[6] \"18279-108\"                                     \n[7] \"18279-109_Tumor_WES_01-18279-109_Normal_WES_01\"\n[8] \"18279-110_Tumor_WES_01-18279-110-Normal_WES_01\"\n[9] \"18279-111_Tumor_WES_01-18279-111-Normal_WES_01\"\n\n# Rename samples and calculate log2ratio\nabsolute_seg_file &lt;- absolute_seg_file %&gt;%\n  mutate(Patient = paste0(\"P\", str_extract(sample, \"(?&lt;=18279-).{3}\")),\n         log2ratio = log2(total_copy_ratio))\n\n# Grab Chr6\nchr6_seg &lt;- absolute_seg_file %&gt;%\n  filter(Chromosome == 6)",
+    "crumbs": [
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>bulkWES: Tumor Chromosome Deletion</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkWES_Chromosome_Deletion_S1CDE.html#plotting-loh-for-fig-s1c",
+    "href": "Tumor_bulkWES_Chromosome_Deletion_S1CDE.html#plotting-loh-for-fig-s1c",
+    "title": "3  bulkWES: Tumor Chromosome Deletion",
+    "section": "3.4 Plotting LOH for Fig S1C",
+    "text": "3.4 Plotting LOH for Fig S1C\n\nloh_plot &lt;- ggplot(chr6_seg, aes(x = (Start.bp + End.bp) / 2, y = LOH, color = Chromosome)) +\n  geom_rect(fill = \"grey\", color = NA, alpha = 1, \n            xmin = 29757731, xmax = 33066072, \n            ymin = 0, ymax = 1) +\n  geom_segment(aes(x = Start.bp, xend = End.bp, y = LOH, yend = LOH), size = 2, color = \"#7b0a0a\") +\n  labs(title = \"CNV Profile Plot of Chr6\",\n       x = \"Genomic Position\",\n       y = \"LOH\",\n       color = \"Chromosome\") +\n  theme_minimal() +\n  facet_wrap(~ Patient) +\n  theme(legend.position=\"none\")\n\nWarning: Using `size` aesthetic for lines was deprecated in ggplot2 3.4.0.\nℹ Please use `linewidth` instead.\n\nloh_plot",
+    "crumbs": [
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>bulkWES: Tumor Chromosome Deletion</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkWES_Chromosome_Deletion_S1CDE.html#plotting-absolute-copy-numbers-of-the-two-alleles-for-fig-s1d",
+    "href": "Tumor_bulkWES_Chromosome_Deletion_S1CDE.html#plotting-absolute-copy-numbers-of-the-two-alleles-for-fig-s1d",
+    "title": "3  bulkWES: Tumor Chromosome Deletion",
+    "section": "3.5 Plotting absolute copy numbers of the two alleles for Fig S1D",
+    "text": "3.5 Plotting absolute copy numbers of the two alleles for Fig S1D\n\nabsolute_cn &lt;- ggplot(chr6_seg, aes(x = (Start.bp + End.bp) / 2, y = modal_total_cn, color = Chromosome)) +\n  geom_rect(fill = \"grey\", color = NA, alpha = 1, \n            xmin = 29757731, xmax = 33066072, \n            ymin = 0, ymax = 7) +\n  geom_segment(aes(x = Start.bp, xend = End.bp, y = modal.a1, yend = modal.a1), size = 2, color = \"#46786b\") +\n  geom_segment(aes(x = Start.bp, xend = End.bp, y = modal.a2, yend = modal.a2), size = 2, color = \"#a7a486\") +\n  labs(title = \"CNV Profile Plot of Chr6\",\n       x = \"Genomic Position\",\n       y = \"Absolute copy number\",\n       color = \"Chromosome\") +\n  theme_minimal() +\n  facet_wrap(~ Patient) +\n  theme(legend.position=\"none\") +\n  geom_hline(yintercept = 1, linetype = \"dashed\", color = \"red\")\n\nabsolute_cn",
+    "crumbs": [
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>bulkWES: Tumor Chromosome Deletion</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkWES_Chromosome_Deletion_S1CDE.html#plotting-copy-number-ratio-ie-total_copy_ratio-column-for-fig-s1e",
+    "href": "Tumor_bulkWES_Chromosome_Deletion_S1CDE.html#plotting-copy-number-ratio-ie-total_copy_ratio-column-for-fig-s1e",
+    "title": "3  bulkWES: Tumor Chromosome Deletion",
+    "section": "3.6 Plotting copy number ratio (ie total_copy_ratio column) for Fig S1E",
+    "text": "3.6 Plotting copy number ratio (ie total_copy_ratio column) for Fig S1E\n\ncnr_plot &lt;- ggplot(chr6_seg, aes(x = (Start.bp + End.bp) / 2, y = log2ratio, color = Chromosome)) +\n  geom_rect(fill = \"grey\", color = NA, alpha = 1, \n            xmin = 29757731, xmax = 33066072, \n            ymin = 1.5, ymax = -1.5) +\n  geom_segment(aes(x = Start.bp, xend = End.bp, y = log2ratio, yend = log2ratio), size = 2) +\n  labs(title = \"CNV Profile Plot of Chr6\",\n       x = \"Genomic Position\",\n       y = \"Log2 Copy Number Ratio\",\n       color = \"Chromosome\") +\n  theme_minimal() +\n  facet_wrap(~ Patient) +\n  theme(legend.position=\"none\") +\n  geom_hline(yintercept = 0, linetype = \"dashed\", color = \"red\")\n\ncnr_plot",
+    "crumbs": [
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>bulkWES: Tumor Chromosome Deletion</span>"
+    ]
+  },
+  {
+    "objectID": "Tumor_bulkWES_Chromosome_Deletion_S1CDE.html#get-session-info",
+    "href": "Tumor_bulkWES_Chromosome_Deletion_S1CDE.html#get-session-info",
+    "title": "3  bulkWES: Tumor Chromosome Deletion",
+    "section": "3.7 Get session info",
+    "text": "3.7 Get session info\n\nsessionInfo()\n\nR version 4.3.2 (2023-10-31)\nPlatform: x86_64-pc-linux-gnu (64-bit)\nRunning under: Rocky Linux 8.10 (Green Obsidian)\n\nMatrix products: default\nBLAS/LAPACK: /usr/lib64/libopenblasp-r0.3.15.so;  LAPACK version 3.9.0\n\nlocale:\n [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              \n [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    \n [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   \n [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 \n [9] LC_ADDRESS=C               LC_TELEPHONE=C            \n[11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       \n\ntime zone: America/New_York\ntzcode source: system (glibc)\n\nattached base packages:\n[1] stats     graphics  grDevices utils     datasets  methods   base     \n\nother attached packages:\n [1] lubridate_1.9.4 forcats_1.0.0   stringr_1.5.1   purrr_1.0.4    \n [5] readr_2.1.5     tidyr_1.3.1     tibble_3.2.1    ggplot2_3.5.1  \n [9] tidyverse_2.0.0 dplyr_1.1.4    \n\nloaded via a namespace (and not attached):\n [1] gtable_0.3.6      jsonlite_1.8.9    compiler_4.3.2    tidyselect_1.2.1 \n [5] scales_1.3.0      fastmap_1.2.0     R6_2.6.1          labeling_0.4.3   \n [9] generics_0.1.3    knitr_1.49        htmlwidgets_1.6.4 munsell_0.5.1    \n[13] pillar_1.10.1     tzdb_0.5.0        rlang_1.1.5       stringi_1.8.4    \n[17] xfun_0.50         timechange_0.3.0  cli_3.6.3         withr_3.0.2      \n[21] magrittr_2.0.3    digest_0.6.37     grid_4.3.2        rstudioapi_0.17.1\n[25] hms_1.1.3         lifecycle_1.0.4   vctrs_0.6.5       evaluate_1.0.1   \n[29] glue_1.8.0        farver_2.1.2      colorspace_2.1-1  rmarkdown_2.29   \n[33] tools_4.3.2       pkgconfig_2.0.3   htmltools_0.5.8.1",
+    "crumbs": [
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>bulkWES: Tumor Chromosome Deletion</span>"
+    ]
+  }
+]

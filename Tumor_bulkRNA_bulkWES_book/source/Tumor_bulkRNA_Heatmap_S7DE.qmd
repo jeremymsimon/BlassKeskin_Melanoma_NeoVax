@@ -1,0 +1,277 @@
+# bulkRNA: KEGG Gene Set Expression {sec-bulkrna-tumor-gene-expression-boxplot-heatmap}
+
+## Set up workspace
+```{r}
+# Libraries
+library(msigdbr)
+library(viridis)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(ComplexHeatmap)
+library(circlize)
+```
+
+## Load pt and projecTILs colors
+```{r}
+pt_cols <- readRDS("Part0_Patient_Fill.rds")
+pt_fill <- readRDS("Part0_Patient_Fill.rds")
+```
+
+## Load RSEM results
+```{r}
+p101_rsem <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-101.rsem.genes.results.gz", header = TRUE) %>%
+  mutate(gene_id_stable = str_split_i(gene_id, fixed("."), 1)) %>%
+  dplyr::rename("P101" = "TPM")
+p103_rsem <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-103.rsem.genes.results.gz", header = TRUE) %>%
+  mutate(gene_id_stable = str_split_i(gene_id, fixed("."), 1)) %>%
+  dplyr::rename("P103" = "TPM")
+p104_rsem <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-104.rsem.genes.results.gz", header = TRUE) %>%
+  mutate(gene_id_stable = str_split_i(gene_id, fixed("."), 1)) %>%
+  dplyr::rename("P104" = "TPM")
+p105_rsem <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-105.rsem.genes.results.gz", header = TRUE) %>%
+  mutate(gene_id_stable = str_split_i(gene_id, fixed("."), 1)) %>%
+  dplyr::rename("P105" = "TPM")
+p106_rsem <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-106.rsem.genes.results.gz", header = TRUE) %>%
+  mutate(gene_id_stable = str_split_i(gene_id, fixed("."), 1)) %>%
+  dplyr::rename("P106" = "TPM")
+p108_rsem <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-108.rsem.genes.results.gz", header = TRUE) %>%
+  mutate(gene_id_stable = str_split_i(gene_id, fixed("."), 1)) %>%
+  dplyr::rename("P108" = "TPM")
+p109_rsem <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-109_Tumor_WES_01-18279-109_Normal_WES_01.rsem.genes.results.gz", header = TRUE) %>%
+  mutate(gene_id_stable = str_split_i(gene_id, fixed("."), 1)) %>%
+  dplyr::rename("P109" = "TPM")
+p110_rsem <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-110_Tumor_WES_01-18279-110-Normal_WES_01.rsem.genes.results.gz", header = TRUE) %>%
+  mutate(gene_id_stable = str_split_i(gene_id, fixed("."), 1)) %>%
+  dplyr::rename("P110" = "TPM")
+p111_rsem <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkRNA/rsem_gene_results/18279-111_Tumor_WES_01-18279-111-Normal_WES_01.rsem.genes.results.gz", header = TRUE) %>%
+  mutate(gene_id_stable = str_split_i(gene_id, fixed("."), 1)) %>%
+  dplyr::rename("P111" = "TPM")
+
+```
+
+## Load AntigenProcessingPresentation, MHC class I, MHC class II pathways
+```{r}
+antigen_processing_geneset <- msigdbr(species = "Homo sapiens") %>%
+  filter(gs_name == "KEGG_ANTIGEN_PROCESSING_AND_PRESENTATION") %>%
+  select(human_gene_symbol, ensembl_gene)
+
+# HLA class I (A-C)
+hla_class1 <- msigdbr(species = "Homo sapiens") %>%
+  distinct(gene_symbol, ensembl_gene) %>%
+  filter(str_detect(gene_symbol, "^HLA-(A|B|C)"))
+
+# HLA class II (ie any HLA that is HLA-D*)
+hla_class2 <- msigdbr(species = "Homo sapiens") %>%
+  distinct(gene_symbol, ensembl_gene) %>%
+  filter(str_detect(gene_symbol, "^HLA-(?=D)"))
+
+# Remove genes that are in HLA class II or are HLA A-C from the KEGG antigen processing gene list since it's a duplication
+antigen_processing_geneset <- antigen_processing_geneset %>%
+  filter(!(human_gene_symbol %in% hla_class1$gene_symbol),
+         !(human_gene_symbol %in% hla_class2$gene_symbol))
+```
+
+## Extract KEGG antigen processing genes
+```{r}
+p101_antigen_processing_rsem <- p101_rsem %>%
+  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)
+p103_antigen_processing_rsem <- p103_rsem %>%
+  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)
+p104_antigen_processing_rsem <- p104_rsem %>%
+  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)
+p105_antigen_processing_rsem <- p105_rsem %>%
+  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)
+p106_antigen_processing_rsem <- p106_rsem %>%
+  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)
+p108_antigen_processing_rsem <- p108_rsem %>%
+  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)
+p109_antigen_processing_rsem <- p109_rsem %>%
+  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)
+p110_antigen_processing_rsem <- p110_rsem %>%
+  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)
+p111_antigen_processing_rsem <- p111_rsem %>%
+  filter(gene_id_stable %in% antigen_processing_geneset$ensembl_gene)
+
+all_antigen_processing_rsem <- p101_antigen_processing_rsem[,c("gene_id", "gene_id_stable", "P101")] %>%
+  full_join(p103_antigen_processing_rsem[,c("gene_id", "gene_id_stable", "P103")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p104_antigen_processing_rsem[,c("gene_id", "gene_id_stable", "P104")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p105_antigen_processing_rsem[,c("gene_id", "gene_id_stable", "P105")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p106_antigen_processing_rsem[,c("gene_id", "gene_id_stable", "P106")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p108_antigen_processing_rsem[,c("gene_id", "gene_id_stable", "P108")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p109_antigen_processing_rsem[,c("gene_id", "gene_id_stable", "P109")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p110_antigen_processing_rsem[,c("gene_id", "gene_id_stable", "P110")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p111_antigen_processing_rsem[,c("gene_id", "gene_id_stable", "P111")], by = c("gene_id", "gene_id_stable"))  %>%
+  mutate(Type = "AntigenProcessingPresentation")
+
+## For the 4 pt: Remove lowly expressed genes, ie. gene was expressed (>=1 TPM) in at least one patient
+best_antigen_processing_rsem_4pt <- all_antigen_processing_rsem %>%
+  rowwise() %>%
+  filter((P101 >= 1) | (P103 >= 1) | (P104 >= 1) | (P108 >= 1))
+
+## For all pt: Remove lowly expressed genes, ie. gene was expressed (>=1 TPM) in at least one patient
+best_antigen_processing_rsem_9pt <- all_antigen_processing_rsem %>%
+  rowwise() %>%
+  filter((P101 >= 1) | (P103 >= 1) | (P104 >= 1) |  (P105 >= 1) | (P106 >= 1) | (P108 >= 1) | (P109 >= 1) | (P110 >= 1) | (P111 >= 1))
+```
+
+## Extract top HLA class I (ie HLA-A, HLA-B, HLA-C)
+```{r}
+p101_class1_rsem <- p101_rsem %>%
+  filter(gene_id_stable %in% hla_class1$ensembl_gene)
+p103_class1_rsem <- p103_rsem %>%
+  filter(gene_id_stable %in% hla_class1$ensembl_gene)
+p104_class1_rsem <- p104_rsem %>%
+  filter(gene_id_stable %in% hla_class1$ensembl_gene)
+p105_class1_rsem <- p105_rsem %>%
+  filter(gene_id_stable %in% hla_class1$ensembl_gene)
+p106_class1_rsem <- p106_rsem %>%
+  filter(gene_id_stable %in% hla_class1$ensembl_gene)
+p108_class1_rsem <- p108_rsem %>%
+  filter(gene_id_stable %in% hla_class1$ensembl_gene)
+p109_class1_rsem <- p109_rsem %>%
+  filter(gene_id_stable %in% hla_class1$ensembl_gene)
+p110_class1_rsem <- p110_rsem %>%
+  filter(gene_id_stable %in% hla_class1$ensembl_gene)
+p111_class1_rsem <- p111_rsem %>%
+  filter(gene_id_stable %in% hla_class1$ensembl_gene)
+
+all_class1_rsem <- p101_class1_rsem[,c("gene_id", "gene_id_stable", "P101")] %>%
+  full_join(p103_class1_rsem[,c("gene_id", "gene_id_stable", "P103")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p104_class1_rsem[,c("gene_id", "gene_id_stable", "P104")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p105_class1_rsem[,c("gene_id", "gene_id_stable", "P105")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p106_class1_rsem[,c("gene_id", "gene_id_stable", "P106")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p108_class1_rsem[,c("gene_id", "gene_id_stable", "P108")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p109_class1_rsem[,c("gene_id", "gene_id_stable", "P109")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p110_class1_rsem[,c("gene_id", "gene_id_stable", "P110")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p111_class1_rsem[,c("gene_id", "gene_id_stable", "P111")], by = c("gene_id", "gene_id_stable")) %>%
+  mutate(Type = "ClassI")
+```
+
+## Extract HLA class II (ie any HLA-D*)
+```{r}
+p101_class2_rsem <- p101_rsem %>%
+  filter(gene_id_stable %in% hla_class2$ensembl_gene)
+p103_class2_rsem <- p103_rsem %>%
+  filter(gene_id_stable %in% hla_class2$ensembl_gene)
+p104_class2_rsem <- p104_rsem %>%
+  filter(gene_id_stable %in% hla_class2$ensembl_gene)
+p105_class2_rsem <- p105_rsem %>%
+  filter(gene_id_stable %in% hla_class2$ensembl_gene)
+p106_class2_rsem <- p106_rsem %>%
+  filter(gene_id_stable %in% hla_class2$ensembl_gene)
+p108_class2_rsem <- p108_rsem %>%
+  filter(gene_id_stable %in% hla_class2$ensembl_gene)
+p109_class2_rsem <- p109_rsem %>%
+  filter(gene_id_stable %in% hla_class2$ensembl_gene)
+p110_class2_rsem <- p110_rsem %>%
+  filter(gene_id_stable %in% hla_class2$ensembl_gene)
+p111_class2_rsem <- p111_rsem %>%
+  filter(gene_id_stable %in% hla_class2$ensembl_gene)
+
+all_class2_rsem <- p101_class2_rsem[,c("gene_id", "gene_id_stable", "P101")] %>%
+  full_join(p103_class2_rsem[,c("gene_id", "gene_id_stable", "P103")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p104_class2_rsem[,c("gene_id", "gene_id_stable", "P104")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p105_class2_rsem[,c("gene_id", "gene_id_stable", "P105")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p106_class2_rsem[,c("gene_id", "gene_id_stable", "P106")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p108_class2_rsem[,c("gene_id", "gene_id_stable", "P108")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p109_class2_rsem[,c("gene_id", "gene_id_stable", "P109")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p110_class2_rsem[,c("gene_id", "gene_id_stable", "P110")], by = c("gene_id", "gene_id_stable")) %>%
+  full_join(p111_class2_rsem[,c("gene_id", "gene_id_stable", "P111")], by = c("gene_id", "gene_id_stable"))  %>%
+  mutate(Type = "ClassII")
+
+## For the 4 pt: Remove lowly expressed genes, ie. gene was expressed (>=1 TPM) in at least one patient
+best_class2_rsem_4pt <- all_class2_rsem %>%
+  rowwise() %>%
+  filter((P101 >= 1) | (P103 >= 1) | (P104 >= 1) | (P108 >= 1))
+```
+
+## Plot classI, II, and antigen presentation from main 4 patients in a boxplot for Fig S7D
+```{r}
+best_4pt.boxplot <- best_antigen_processing_rsem_4pt %>%
+  rbind(all_class1_rsem) %>%
+  rbind(best_class2_rsem_4pt) %>%
+  ungroup() %>%
+  mutate(Type = str_replace(Type, "AntigenProcessingPresentation", "AntigenProcessing\nPresentation"))
+
+boxplot <- best_4pt.boxplot %>%
+  select("P101", "P103", "P104", "P108", Type) %>%
+  pivot_longer(cols = c("P101", "P103", "P104", "P108"), names_to = "Patient") %>%
+  ggplot(aes(x = Patient, y = value, fill = Patient)) +
+    geom_boxplot() +
+    geom_point() +
+    scale_y_log10() +
+  facet_wrap(~Type, scales = "free_y") +
+  theme_bw() +
+  pt_fill +
+  annotation_logticks(sides='l', outside = TRUE) +
+  theme(axis.text.y = element_text(margin = margin(r = 7))) +
+  ylab("TPM") +
+  coord_cartesian(clip = "off")
+
+boxplot
+
+# Get gene symbols
+colnames(antigen_processing_geneset) <- c("gene_symbol", "ensembl_gene")
+genes <- do.call(rbind, list(antigen_processing_geneset, hla_class1, hla_class2))
+
+boxplot_genelist_4pt <- best_4pt.boxplot %>%
+  select(gene_id, gene_id_stable, P101, P103, P104, P108, Type) %>%
+  left_join(genes, by = c("gene_id_stable" = "ensembl_gene"))
+
+```
+
+## Create a heatmap of the antigen processing, class I and class II presentation
+Adding class I and class II genes first so any genes in both classI/II and AntigenProcessingPresentation are assigned to classI/II automatically
+
+## Select 4 patients and select the subset of genes that are expressed in our 4 patients
+```{r}
+kegg_hla_4pt.mat <- boxplot_genelist_4pt %>%
+  select(gene_symbol, P101, P103, P104, P108) %>%
+  column_to_rownames("gene_symbol") %>%
+  as.matrix()
+```
+
+## Create column annotation
+```{r}
+md_4pt <- data.frame(TPM_name = c("P101", "P103", "P104", "P108"),
+                    Patient = c("P101", "P103", "P104", "P108")) %>%
+  column_to_rownames("TPM_name")
+```
+
+## Create heatmap of KEGG antigen presentation + processing, HLA class I, and HLA class II for 4 pt for S7E
+```{r}
+# Double check that cells in metadata and matrix are in the same order
+table(rownames(md_4pt) == colnames(kegg_hla_4pt.mat))
+
+column_annot_4pt.ha = HeatmapAnnotation(Patient = md_4pt$Patient,
+                                    col = list(Patient = c("P101" = "#59A14F", "P103" = "#B07AA1FF", "P104" = "#76B7B2FF", "P108" = "#F6AAC9FF")))
+
+# Subset/Reorder so that cells in the gene list and matrix are in the same order
+boxplot_genelist_4pt <- boxplot_genelist_4pt[match(rownames(kegg_hla_4pt.mat), boxplot_genelist_4pt$gene_symbol),] %>%
+  mutate(Type = str_replace(Type, "AntigenProcessing\nPresentation", "AntigenProcessingPresentation"),
+         Type = factor(Type, levels = c("ClassI", "ClassII", "AntigenProcessingPresentation")))
+
+kegg_hla_4pt.log10 <- log10(kegg_hla_4pt.mat+1)
+
+heatmap_viridis <- Heatmap(kegg_hla_4pt.log10,
+        show_row_dend = FALSE,
+        show_row_names = TRUE,
+        row_names_gp = gpar(fontsize = 6),
+        row_title_rot = 90,
+        show_column_dend = FALSE,
+        show_column_names = FALSE,
+        top_annotation = column_annot_4pt.ha,
+        row_split = boxplot_genelist_4pt$Type,
+        cluster_row_slices = FALSE,
+        name = "log10(TPM+1)",
+        col = colorRamp2(c(0, 1, 1.4, 2.1, 2.4, 2.7, 2.9, 3.3), c("#440154FF", "#482878FF", "#3E4A89FF", "#35B779FF", "#6DCD59FF", "#B4DE2CFF", "#E3E418FF", "#FDE725FF")))
+
+heatmap_viridis
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
+

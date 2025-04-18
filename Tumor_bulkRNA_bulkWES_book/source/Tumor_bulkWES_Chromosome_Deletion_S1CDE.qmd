@@ -1,0 +1,105 @@
+# bulkWES: Tumor Chromosome Deletion {sec-bulkwes-tumor-hla_loci_plot}
+
+## Set up workspace
+```{r}
+# Libraries
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+```
+
+## Load "absolute_seg_file" variable in Terra from all patients
+```{r}
+p101_absolute_seg_file <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-101.segtab.txt", header = TRUE)
+p103_absolute_seg_file <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-103.segtab.txt", header = TRUE)
+p104_absolute_seg_file <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-104.segtab.txt", header = TRUE)
+p105_absolute_seg_file <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-105.segtab.txt", header = TRUE)
+p106_absolute_seg_file <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-106.segtab.txt", header = TRUE)
+p108_absolute_seg_file <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-108.segtab.txt", header = TRUE)
+p109_absolute_seg_file <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-109_Tumor_WES_01-18279-109_Normal_WES_01.segtab.txt", header = TRUE)
+p110_absolute_seg_file <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-110_Tumor_WES_01-18279-110-Normal_WES_01.segtab.txt", header = TRUE)
+p111_absolute_seg_file <- read.table("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/objects/bulkWES/absolute_seg_file/18279-111_Tumor_WES_01-18279-111-Normal_WES_01.segtab.txt", header = TRUE)
+```
+
+## Format seg files
+```{r}
+absolute_seg_file <- do.call(rbind, list(p101_absolute_seg_file, p103_absolute_seg_file, p104_absolute_seg_file, p105_absolute_seg_file, p106_absolute_seg_file, p108_absolute_seg_file, p109_absolute_seg_file, p110_absolute_seg_file, p111_absolute_seg_file))
+
+unique(absolute_seg_file$sample)
+
+# Rename samples and calculate log2ratio
+absolute_seg_file <- absolute_seg_file %>%
+  mutate(Patient = paste0("P", str_extract(sample, "(?<=18279-).{3}")),
+         log2ratio = log2(total_copy_ratio))
+
+# Grab Chr6
+chr6_seg <- absolute_seg_file %>%
+  filter(Chromosome == 6)
+```
+
+## Plotting LOH for Fig S1C
+```{r}
+loh_plot <- ggplot(chr6_seg, aes(x = (Start.bp + End.bp) / 2, y = LOH, color = Chromosome)) +
+  geom_rect(fill = "grey", color = NA, alpha = 1, 
+            xmin = 29757731, xmax = 33066072, 
+            ymin = 0, ymax = 1) +
+  geom_segment(aes(x = Start.bp, xend = End.bp, y = LOH, yend = LOH), size = 2, color = "#7b0a0a") +
+  labs(title = "CNV Profile Plot of Chr6",
+       x = "Genomic Position",
+       y = "LOH",
+       color = "Chromosome") +
+  theme_minimal() +
+  facet_wrap(~ Patient) +
+  theme(legend.position="none")
+
+loh_plot
+
+```
+
+## Plotting absolute copy numbers of the two alleles for Fig S1D
+```{r}
+absolute_cn <- ggplot(chr6_seg, aes(x = (Start.bp + End.bp) / 2, y = modal_total_cn, color = Chromosome)) +
+  geom_rect(fill = "grey", color = NA, alpha = 1, 
+            xmin = 29757731, xmax = 33066072, 
+            ymin = 0, ymax = 7) +
+  geom_segment(aes(x = Start.bp, xend = End.bp, y = modal.a1, yend = modal.a1), size = 2, color = "#46786b") +
+  geom_segment(aes(x = Start.bp, xend = End.bp, y = modal.a2, yend = modal.a2), size = 2, color = "#a7a486") +
+  labs(title = "CNV Profile Plot of Chr6",
+       x = "Genomic Position",
+       y = "Absolute copy number",
+       color = "Chromosome") +
+  theme_minimal() +
+  facet_wrap(~ Patient) +
+  theme(legend.position="none") +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red")
+
+absolute_cn
+
+```
+
+
+## Plotting copy number ratio (ie total_copy_ratio column) for Fig S1E
+```{r}
+cnr_plot <- ggplot(chr6_seg, aes(x = (Start.bp + End.bp) / 2, y = log2ratio, color = Chromosome)) +
+  geom_rect(fill = "grey", color = NA, alpha = 1, 
+            xmin = 29757731, xmax = 33066072, 
+            ymin = 1.5, ymax = -1.5) +
+  geom_segment(aes(x = Start.bp, xend = End.bp, y = log2ratio, yend = log2ratio), size = 2) +
+  labs(title = "CNV Profile Plot of Chr6",
+       x = "Genomic Position",
+       y = "Log2 Copy Number Ratio",
+       color = "Chromosome") +
+  theme_minimal() +
+  facet_wrap(~ Patient) +
+  theme(legend.position="none") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")
+
+cnr_plot
+```
+
+
+## Get session info
+```{r}
+sessionInfo()
+```
+
