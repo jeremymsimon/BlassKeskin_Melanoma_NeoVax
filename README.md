@@ -1,6 +1,6 @@
 # Enhanced adjuvanticity of a personal neoantigen vaccine generates potent immunity in melanoma
 <p align="justify">
-  Eryn Blass*, Derin B. Keskin*, Chloe R. Tu, Cleo Forman, Allison Vanasse, Haley E. Sax, Bohoon Shim, Vipheaviny Chea, Nawoo Kim, Isabel Carulli, Jackson Southard, Haoxiang Lyu, Wesley Lu, Micah Rickles-Young, Alexander B. Afeyan, Oriol Olive, Ambica Mehndiratta, Haley Greenslade, Keerthi Shetty, Joanna Baginska, Ilana Gomez-Diaz, Allison Nau, Kathleen L. Pfaff, Andrew Gans, Elizabeth I Buchbinder, Tamara A. Sussman, Megan L Insco, Charles H. Yoon, Scott J. Rodig, Sachet A. Shukla, Shuqiang Li, Jon C. Aster, David A. Braun, Carrie Cibulskis, Nir Hacohen, Donna S. Neuberg, A Giobbie-Hurder, Kenneth J. Livak, Edward F. Fritsch, Giacomo Oliveira, Jeremy M. Simon, Catherine J. Wu, Patrick A. Ott
+  Eryn Blass*, Derin B. Keskin*, <b>Chloe R. Tu</b>, Cleo Forman, Allison Vanasse, Haley E. Sax, Bohoon Shim, Vipheaviny Chea, Nawoo Kim, Isabel Carulli, Jackson Southard, Haoxiang Lyu, Wesley Lu, Micah Rickles-Young, Alexander B. Afeyan, Oriol Olive, Ambica Mehndiratta, Haley Greenslade, Keerthi Shetty, Joanna Baginska, Ilana Gomez-Diaz, Allison Nau, Kathleen L. Pfaff, Andrew Gans, Elizabeth I Buchbinder, Tamara A. Sussman, Megan L Insco, Charles H. Yoon, Scott J. Rodig, Sachet A. Shukla, Shuqiang Li, Jon C. Aster, David A. Braun, Carrie Cibulskis, Nir Hacohen, Donna S. Neuberg, A Giobbie-Hurder, Kenneth J. Livak, Edward F. Fritsch, Giacomo Oliveira, <b>Jeremy M. Simon</b>, Catherine J. Wu, Patrick A. Ott
 </p>
 
 ## Abstract
@@ -15,13 +15,16 @@
 
   Included and linked here are books rendered via `Quarto`, one for each stage of the analysis:
 
-  * Analysis of IFNg-stimulated T cells [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/IFNg_book/)
-  * Analysis of Tumor biopsies [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/Tumor_book/)
-  * Analysis of Skin vaccine-site biopsies [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/Skin_book/)
-  * Analysis of HLA/MHC in bulk tumor RNA + WES [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/Tumor_bulkRNA_bulkWES_book)
-  * Analysis of bulk TCR clonotypes in longitudinal and vaccine pool stimulated PBMC samples [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/PBMC_bulkTCR_book)
-  * Figures derived from analysis of bulk TCR clonotypes in PBMC [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/PBMC_bulkTCR_Figures_book)
-  * Analysis of single-cell TCR clonotypes in tumor and skin and integrative analyses with scRNA data [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/Tumor_Skin_scTCR_book)
+  * Analysis of IFNg-stimulated T cells [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/IFNg_book/)<sup>1</sup>
+  * Analysis of Tumor biopsies [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/Tumor_book/)<sup>1</sup>
+  * Analysis of Skin vaccine-site biopsies [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/Skin_book/)<sup>1</sup>
+  * Analysis of HLA/MHC in bulk tumor RNA + WES [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/Tumor_bulkRNA_bulkWES_book)<sup>2</sup>
+  * Analysis of bulk TCR clonotypes in longitudinal and vaccine pool stimulated PBMC samples [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/PBMC_bulkTCR_book)<sup>2</sup>
+  * Figures derived from analysis of bulk TCR clonotypes in PBMC [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/PBMC_bulkTCR_Figures_book)<sup>2</sup>
+  * Analysis of single-cell TCR clonotypes in tumor and skin and integrative analyses with scRNA data [available here](https://jeremymsimon.github.io/BlassKeskin_Melanoma_NeoVax/Tumor_Skin_scTCR_book)<sup>2</sup>
+
+  <sup>1</sup> Jeremy M. Simon
+  <sup>2</sup> Chloe R. Tu
 
   Additionally, source quarto markdown documents (`*.qmd`) are supplied here under each book's subdirectory, e.g.:
   https://github.com/jeremymsimon/BlassKeskin_Melanoma_NeoVax/tree/main/IFNg_book/source
