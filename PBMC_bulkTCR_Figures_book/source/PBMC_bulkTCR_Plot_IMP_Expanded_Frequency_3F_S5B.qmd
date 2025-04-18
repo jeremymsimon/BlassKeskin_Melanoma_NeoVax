@@ -1,0 +1,354 @@
+# bulkTCRseq: Frequency plot of IMP expanded clones {sec-pbmc-imp-expanded-frequency-plot}
+
+## Set up workspace
+```{r}
+# Libraries
+library(tidyverse)
+library(dplyr)
+library(patchwork)
+```
+
+## Load IMP expanded clones
+```{r}
+p101_betas_expanded <- read.csv("p101_betas_merged_typed_imp_expanded_Part3.csv")
+p103_betas_expanded <- read.csv("p103_betas_merged_typed_imp_expanded_Part3.csv")
+p104_betas_expanded <- read.csv("p104_betas_merged_typed_imp_expanded_Part3.csv")
+p105_betas_expanded <- read.csv("p105_betas_merged_typed_imp_expanded_Part3.csv")
+p106_betas_expanded <- read.csv("p106_betas_merged_typed_imp_expanded_Part3.csv")
+p108_betas_expanded <- read.csv("p108_betas_merged_typed_imp_expanded_Part3.csv")
+p109_betas_expanded <- read.csv("p109_betas_merged_typed_imp_expanded_Part3.csv")
+p110_betas_expanded <- read.csv("p110_betas_merged_typed_imp_expanded_Part3.csv")
+p111_betas_expanded <- read.csv("p111_betas_merged_typed_imp_expanded_Part3.csv")
+p110_betas_expanded <- read.csv("p110_betas_merged_typed_imp_expanded_Part3.csv")
+p111_betas_expanded <- read.csv("p111_betas_merged_typed_imp_expanded_Part3.csv")
+```
+
+## Massage data for frequency lineplot
+```{r}
+p101_lineplot_data <- p101_betas_expanded %>%
+  select(c(Beta_clonotype, p101_pretreatment, p101_prevax, p101_postvax, expanded_local_min, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p101_pretreatment", "Pre-vax" = "p101_prevax", "Post-vax" = "p101_postvax") %>% 
+  pivot_longer(!c(Beta_clonotype, expanded_local_min, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vax", "Post-vax")),
+         Type = factor(Type, levels = c("Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p103_lineplot_data <- p103_betas_expanded %>%
+  select(c(Beta_clonotype, p103_pretreatment, p103_prevax, p103_postvax, p103_w48, p103_w72, expanded_local_min, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p103_pretreatment", "Pre-vax" = "p103_prevax", "Post-vax" = "p103_postvax", "W48" = "p103_w48", "W72" = "p103_w72") %>% 
+  pivot_longer(!c(Beta_clonotype, expanded_local_min, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vax", "Post-vax", "W48", "W72")),
+         Type = factor(Type, levels = c("Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p104_lineplot_data <- p104_betas_expanded %>%
+  select(c(Beta_clonotype, p104_pretreatment, p104_prevax, p104_postvax, p104_w48,  expanded_local_min, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p104_pretreatment", "Pre-vax" = "p104_prevax", "Post-vax" = "p104_postvax", "W48" = "p104_w48") %>% 
+  pivot_longer(!c(Beta_clonotype, expanded_local_min, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vax", "Post-vax", "W48")),
+         Type = factor(Type, levels = c("Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p105_lineplot_data <- p105_betas_expanded %>%
+  select(c(Beta_clonotype, p105_pretreatment, p105_prevax, p105_postvax, p105_w48, expanded_local_min, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p105_pretreatment", "Pre-vax" = "p105_prevax", "Post-vax" = "p105_postvax", "W48" = "p105_w48") %>% 
+  pivot_longer(!c(Beta_clonotype, expanded_local_min, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vax", "Post-vax", "W48")),
+         Type = factor(Type, levels = c("Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p106_lineplot_data <- p106_betas_expanded %>%
+  select(c(Beta_clonotype, p106_pretreatment, p106_prevax, p106_postvax, p106_w48, expanded_local_min, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p106_pretreatment", "Pre-vax" = "p106_prevax", "Post-vax" = "p106_postvax", "W48" = "p106_w48") %>% 
+  pivot_longer(!c(Beta_clonotype, expanded_local_min, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vax", "Post-vax", "W48")),
+         Type = factor(Type, levels = c("Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p108_lineplot_data <- p108_betas_expanded %>%
+  select(c(Beta_clonotype, p108_pretreatment, p108_prevax, p108_postvax, p108_w32, expanded_local_min, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p108_pretreatment", "Pre-vax" = "p108_prevax", "Post-vax" = "p108_postvax", "W32" = "p108_w32") %>% 
+  pivot_longer(!c(Beta_clonotype, expanded_local_min, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vax", "Post-vax", "W32")),
+         Type = factor(Type, levels = c("Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p109_lineplot_data <- p109_betas_expanded %>%
+  select(c(Beta_clonotype, p109_pretreatment, p109_prevax, p109_postvax, p109_w48, expanded_local_min, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p109_pretreatment", "Pre-vax" = "p109_prevax", "Post-vax" = "p109_postvax", "W48" = "p109_w48") %>% 
+  pivot_longer(!c(Beta_clonotype, expanded_local_min, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vax", "Post-vax", "W48")),
+         Type = factor(Type, levels = c("Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p110_lineplot_data <- p110_betas_expanded %>%
+  select(c(Beta_clonotype, p110_pretreatment, p110_prevax, p110_postvax, p110_w38, expanded_local_min, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p110_pretreatment", "Pre-vax" = "p110_prevax", "Post-vax" = "p110_postvax", "W38" = "p110_w38") %>% 
+  pivot_longer(!c(Beta_clonotype, expanded_local_min, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vax", "Post-vax", "W38")),
+         Type = factor(Type, levels = c("Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p111_lineplot_data <- p111_betas_expanded %>%
+  select(c(Beta_clonotype, p111_pretreatment, p111_prevax, p111_postvax, p111_w40, expanded_local_min, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p111_pretreatment", "Pre-vax" = "p111_prevax", "Post-vax" = "p111_postvax", "W40" = "p111_w40") %>% 
+  pivot_longer(!c(Beta_clonotype, expanded_local_min, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vax", "Post-vax", "W40")),
+         Type = factor(Type, levels = c("Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+```
+
+## Objects for the LOD lines
+```{r}
+indiv_lod_line <- geom_hline(yintercept = 0.0001, linetype = "dashed", color = "red")
+p101_lod_annot <- annotate("text", x = as.numeric(p101_lineplot_data$Timepoint[[3]]) + 0.25, y = 0.00015, label = "LOD", size = 4, color = "red")
+p103_lod_annot <- annotate("text", x = as.numeric(p103_lineplot_data$Timepoint[[5]]) + 0.25, y = 0.00016, label = "LOD", size = 4, color = "red")
+p104_lod_annot <- annotate("text", x = as.numeric(p104_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00013, label = "LOD", size = 4, color = "red")
+p105_lod_annot <- annotate("text", x = as.numeric(p105_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00015, label = "LOD", size = 4, color = "red")
+p106_lod_annot <- annotate("text", x = as.numeric(p106_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00016, label = "LOD", size = 4, color = "red")
+p108_lod_annot <- annotate("text", x = as.numeric(p108_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00017, label = "LOD", size = 4, color = "red")
+p109_lod_annot <- annotate("text", x = as.numeric(p109_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00016, label = "LOD", size = 4, color = "red")
+p110_lod_annot <- annotate("text", x = as.numeric(p110_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00016, label = "LOD", size = 4, color = "red")
+p111_lod_annot <- annotate("text", x = as.numeric(p111_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00016, label = "LOD", size = 4, color = "red")
+
+```
+
+## Plot frequency over time
+Plotting individual lines with high transparency and a thick line for mean frequency
+```{r, fig.width = 10, fig.height = 7}
+# Get mean
+p101_mean <- p101_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  select(-Beta_clonotype) %>%
+  group_by(Type, Timepoint) %>%
+  summarise(mean = mean(Frequency)) %>%
+  mutate(Patient = "P101")
+            
+# Plot expanded local min invitro
+p101_lineplot <- p101_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  ggplot() +
+  geom_line(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype), alpha = 0.2) +
+  geom_line(data = p101_mean, aes(x = Timepoint, y = mean, color = Type, group = Type), size = ifelse(p101_mean$Type=="Post-Vaccine", 2, 1)) +
+  scale_color_manual(values = c("grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P101") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(size = 7)) +
+  indiv_lod_line +
+  p101_lod_annot
+
+# Get mean
+p103_mean <- p103_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  select(-Beta_clonotype) %>%
+  group_by(Type, Timepoint) %>%
+  summarise(mean = mean(Frequency)) %>%
+  mutate(Patient = "P103")
+            
+# Plot expanded local min invitro
+p103_lineplot <- p103_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  ggplot() +
+  geom_line(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype), alpha = 0.2) +
+  geom_line(data = p103_mean, aes(x = Timepoint, y = mean, color = Type, group = Type), size = ifelse(p103_mean$Type=="Post-Vaccine", 2, 1)) +
+  scale_color_manual(values = c("grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P103") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(size = 7)) +
+  indiv_lod_line +
+  p103_lod_annot
+  
+# Get mean
+p104_mean <- p104_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  select(-Beta_clonotype) %>%
+  group_by(Type, Timepoint) %>%
+  summarise(mean = mean(Frequency)) %>%
+  mutate(Patient = "P104")
+            
+# Plot expanded local min invitro
+p104_lineplot <- p104_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  ggplot() +
+  geom_line(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype), alpha = 0.2) +
+  geom_line(data = p104_mean, aes(x = Timepoint, y = mean, color = Type, group = Type), size = ifelse(p104_mean$Type=="Post-Vaccine", 2, 1)) +
+  scale_color_manual(values = c("grey70", "#0072B2"), guide="none") +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P104") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(size = 7)) +
+  indiv_lod_line +
+  p104_lod_annot
+
+# Get mean
+p105_mean <- p105_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  select(-Beta_clonotype) %>%
+  group_by(Type, Timepoint) %>%
+  summarise(mean = mean(Frequency)) %>%
+  mutate(Patient = "P105")
+            
+# Plot expanded local min invitro
+p105_lineplot <- p105_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  ggplot() +
+  geom_line(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype), alpha = 0.2) +
+  geom_line(data = p105_mean, aes(x = Timepoint, y = mean, color = Type, group = Type), size = ifelse(p105_mean$Type=="Post-Vaccine", 2, 1)) +
+  scale_color_manual(values = c("grey70", "darkgoldenrod3", "#0072B2"), guide="none") +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P105") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(size = 7)) +
+  indiv_lod_line +
+  p105_lod_annot
+
+# Get mean
+p106_mean <- p106_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  select(-Beta_clonotype) %>%
+  group_by(Type, Timepoint) %>%
+  summarise(mean = mean(Frequency)) %>%
+  mutate(Patient = "P106")
+            
+# Plot expanded local min invitro
+p106_lineplot <- p106_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  ggplot() +
+  geom_line(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype), alpha = 0.2) +
+  geom_line(data = p106_mean, aes(x = Timepoint, y = mean, color = Type, group = Type), size = ifelse(p106_mean$Type=="Post-Vaccine", 2, 1)) +
+  scale_color_manual(values = c("grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P106") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(size = 7)) +
+  indiv_lod_line  +
+  p106_lod_annot
+
+# Get mean
+p108_mean <- p108_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  select(-Beta_clonotype) %>%
+  group_by(Type, Timepoint) %>%
+  summarise(mean = mean(Frequency)) %>%
+  mutate(Patient = "P108")
+            
+# Plot expanded local min invitro
+p108_lineplot <- p108_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  ggplot() +
+  geom_line(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype), alpha = 0.2) +
+  geom_line(data = p108_mean, aes(x = Timepoint, y = mean, color = Type, group = Type), size = ifelse(p108_mean$Type=="Post-Vaccine", 2, 1)) +
+  scale_color_manual(values = c("grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P108") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(size = 7)) +
+  indiv_lod_line  +
+  p108_lod_annot
+
+# Get mean
+p109_mean <- p109_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  select(-Beta_clonotype) %>%
+  group_by(Type, Timepoint) %>%
+  summarise(mean = mean(Frequency)) %>%
+  mutate(Patient = "P109")
+            
+# Plot expanded local min invitro
+p109_lineplot <- p109_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  ggplot() +
+  geom_line(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype), alpha = 0.2) +
+  geom_line(data = p109_mean, aes(x = Timepoint, y = mean, color = Type, group = Type), size = ifelse(p109_mean$Type=="Post-Vaccine", 2, 1)) +
+  scale_color_manual(values = c("grey70", "darkgoldenrod3", "#0072B2"), guide="none") +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P109") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(size = 7)) +
+  indiv_lod_line  +
+  p109_lod_annot
+
+# Get mean
+p110_mean <- p110_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  select(-Beta_clonotype) %>%
+  group_by(Type, Timepoint) %>%
+  summarise(mean = mean(Frequency)) %>%
+  mutate(Patient = "P110")
+            
+# Plot expanded local min invitro
+p110_lineplot <- p110_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  ggplot() +
+  geom_line(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype), alpha = 0.2) +
+  geom_line(data = p110_mean, aes(x = Timepoint, y = mean, color = Type, group = Type), size = ifelse(p110_mean$Type=="Post-Vaccine", 2, 1)) +
+  scale_color_manual(values = c("grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P110") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(size = 7)) +
+  indiv_lod_line  +
+  p110_lod_annot
+
+# Get mean
+p111_mean <- p111_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  select(-Beta_clonotype) %>%
+  group_by(Type, Timepoint) %>%
+  summarise(mean = mean(Frequency)) %>%
+  mutate(Patient = "P111")
+            
+# Plot expanded local min invitro
+p111_lineplot <- p111_lineplot_data %>%
+  filter(expanded_local_min == TRUE) %>%
+  ggplot() +
+  geom_line(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype), alpha = 0.2) +
+  geom_line(data = p111_mean, aes(x = Timepoint, y = mean, color = Type, group = Type), size = ifelse(p111_mean$Type=="Post-Vaccine", 2, 1)) +
+  scale_color_manual(values = c("grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P111") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(size = 7)) +
+  indiv_lod_line  +
+  p111_lod_annot
+
+all_pt_lp <- p101_lineplot + p103_lineplot + p104_lineplot + p105_lineplot + p106_lineplot + p108_lineplot + p109_lineplot + p110_lineplot + p111_lineplot + plot_layout(guides = 'collect', axis_titles = "collect", ncol = 3)  + plot_annotation('Movement of IMP-Expanded Clones',  theme=theme(plot.title=element_text(hjust=0.5, size = 20)))
+
+all_pt_lp
+
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```

@@ -1,0 +1,237 @@
+# bulkTCRseq: Percentage of significantly expanding clones across patients {sec-pbmc-se-clones-bar-plot}
+
+## Set up workspace
+```{r}
+# Libraries
+library(tidyverse)
+library(dplyr)
+```
+
+## Open clones that significantly expanded after vaccination 
+```{r}
+file_list <- list.files(".")
+file_list <- file_list[str_detect(file_list, "pval_postvax_vs_prevax_Part4.csv")]
+pt_name <- str_split_i(file_list, "_", 1)
+
+# Read in csvs
+SE_vax.list <- lapply(file_list, read.csv)
+# Rename
+names(SE_vax.list) <- pt_name
+
+# Reformat data
+for(i in c(1:length(SE_vax.list))){
+  # Filter for significant clones
+  SE_vax.list[[i]] <- SE_vax.list[[i]] %>% 
+    filter(sig == "Sig") %>%
+  # Add a column for Patient
+    mutate(Patient = toupper(names(SE_vax.list[i]))) %>%
+  # Select important columns
+    select(Beta_clonotype, sig, Patient) %>%
+    # Rename sig
+    dplyr::rename("SE_vax" = "sig")
+}
+
+```
+
+## Open clones that significantly expanded after nivolumab 
+```{r}
+file_list <- list.files(".")
+file_list <- file_list[str_detect(file_list, "pval_prevax_vs_pretreatment_Part4.csv")]
+pt_name <- str_split_i(file_list, "_", 1)
+
+# Read in csvs
+SE_nivo.list <- lapply(file_list, read.csv)
+# Rename
+names(SE_nivo.list) <- pt_name
+
+# Reformat data
+for(i in c(1:length(SE_nivo.list))){
+  # Filter for significant clones
+  SE_nivo.list[[i]] <- SE_nivo.list[[i]] %>% 
+    filter(sig == "Sig") %>%
+  # Add a column for Patient
+    mutate(Patient = toupper(names(SE_nivo.list[i]))) %>%
+  # Select important columns
+    select(Beta_clonotype, sig, Patient) %>%
+    # Rename sig
+    dplyr::rename("SE_nivo" = "sig")
+}
+```
+
+## Open Existing, de novo Post-Nivo and Post-Vax clones
+```{r}
+file_list <- list.files(".")
+file_list <- file_list[str_detect(file_list, "merged_typed_full_Part3.csv")]
+pt_name <- str_split_i(file_list, "_", 1)
+
+# Read in csvs
+typed_clones.list <- lapply(file_list, read.csv)
+# Rename list
+names(typed_clones.list) <- pt_name
+
+# Reformat data
+for(i in c(1:length(typed_clones.list))){
+  # Filter for non-Other clones
+  typed_clones.list[[i]] <- typed_clones.list[[i]] %>% 
+    filter(Type != "Other") %>%
+    # Select important columns 
+    select(Beta_clonotype, Type, Patient, max_log2fc_pool_vs_dmso, ends_with("prevax"), ends_with("postvax"))
+  colnames(typed_clones.list[[i]])[5] <- "prevax"
+  colnames(typed_clones.list[[i]])[7] <- "postvax"
+}
+
+```
+
+## Open IMP-expanded clones
+```{r}
+file_list <- list.files(".")
+file_list <- file_list[str_detect(file_list, "betas_merged_typed_imp_expanded_Part3.csv")]
+pt_name <- str_split_i(file_list, "_", 1)
+
+# Read in csvs
+imp_clones.list <- lapply(file_list, read.csv)
+# Rename list
+names(imp_clones.list) <- pt_name
+
+# Reformat data
+for(i in c(1:length(imp_clones.list))){
+  imp_clones.list[[i]] <- imp_clones.list[[i]] %>% 
+    # Select important columns 
+    select(Beta_clonotype, Type, Patient, expanded_local_min)
+}
+```
+
+## Merge lists into a large dataframe
+```{r}
+SE_vax.df <- do.call(rbind, SE_vax.list)
+SE_nivo.df <- do.call(rbind, SE_nivo.list)
+typed_clones.df <- do.call(rbind, typed_clones.list)
+imp_clones.df <- do.call(rbind, imp_clones.list)
+
+clones.df <- SE_vax.df %>%
+  full_join(SE_nivo.df) %>%
+  full_join(typed_clones.df) %>%
+  full_join(imp_clones.df) %>%
+  mutate(SE_nivo = case_when(SE_nivo == "Sig" ~ "SE_nivo",
+                                      is.na(SE_nivo) ~ "Non_SE_nivo"),
+         SE_vax = case_when(SE_vax == "Sig" ~ "SE_vax",
+                                      is.na(SE_vax) ~ "Non_SE_vax"),
+         Type = case_when(is.na(Type) ~ "Other",
+                          T ~ Type),
+         IMP_expanded = case_when(expanded_local_min == TRUE ~ "IMP-expanded",
+                                        is.na(expanded_local_min) & Type == "Other" ~ "NA",
+                                        T ~ "Non_IMP-expanded"),
+         SE = case_when(SE_vax == "Non_SE_vax" & SE_nivo == "Non_SE_nivo" ~ "Non SE",
+                        SE_vax == "Non_SE_vax" & SE_nivo == "SE_nivo" ~ "SE nivo",
+                        SE_vax == "SE_vax" & SE_nivo == "Non_SE_nivo" ~ "SE vax",
+                        SE_vax == "SE_vax" & SE_nivo == "SE_nivo" ~ "SE nivo + vax"),
+         SE_general = case_when(SE == "Non SE" ~ "Non SE",
+                                T ~ "SE")) %>%
+  select(-expanded_local_min, -max_log2fc_pool_vs_dmso)
+```
+
+## Plot the number of existing, post-nivolumab and post-vaccine clones that are also significantly expanding after nivolumab or vaccination for Fig 3C top
+```{r, fig.width = 5, fig.height = 2}
+clones_sum <- clones.df %>%
+  filter(Type %in% c("Existing", "Post-Nivolumab", "Post-Vaccine")) %>%
+  mutate(Type = factor(Type)) %>%
+  group_by(SE, SE_general, Patient, Type) %>%
+  dplyr::count()
+
+plot <- clones_sum %>%
+  ggplot(aes(y = n, x = Type, fill = SE_general)) +
+  geom_col(position = "fill", size = 0.2, width = 0.7, color = "black") +
+  theme_classic() +
+  facet_wrap(~Patient, ncol = 9) +
+  scale_fill_manual(values = c("white", "black"),
+                    name = "Category") +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.background = element_blank(),
+        strip.text = element_blank(),
+        axis.title.x = element_blank()) +
+  ylab("Proportion of clones") +
+  annotate("rect", col = "grey70", fill = "grey70", size = 1,
+        xmin = as.numeric(unique(clones_sum$Type)[[1]]) - 0.3,
+        xmax = as.numeric(unique(clones_sum$Type)[[1]]) + 0.3,
+        ymin = -0.05, ymax = -0.15) +
+  annotate("rect", col = "darkgoldenrod3", fill = "darkgoldenrod3", size = 1,
+        xmin = as.numeric(unique(clones_sum$Type)[[2]]) - 0.3,
+        xmax = as.numeric(unique(clones_sum$Type)[[2]]) + 0.3,
+        ymin = -0.05, ymax = -0.15) +
+  annotate("rect", col = "#0072B2", fill = "#0072B2", size = 1,
+        xmin = as.numeric(unique(clones_sum$Type)[[3]]) - 0.3,
+        xmax = as.numeric(unique(clones_sum$Type)[[3]]) + 0.3,
+        ymin = -0.05, ymax = -0.15) +
+  scale_y_continuous(expand = c(0, 0.06))
+
+plot
+
+```
+
+## Plot the number of IMP expanded clones are also significantly expanding after vaccination for Fig 3H left
+```{r}
+imp_clones_sum <- clones.df %>%
+  filter(Type %in% c("Existing", "Post-Nivolumab", "Post-Vaccine")) %>%
+  group_by(SE_vax, Patient, IMP_expanded) %>%
+  dplyr::count() 
+
+filt_imp_clones_sum <- imp_clones_sum %>%
+  filter(IMP_expanded == "IMP-expanded") %>%
+  mutate(Patient = factor(Patient, levels = c("P101", "P104", "P109", "P108", "P105", "P111", "P106", "P110", "P103")),
+         SE_vax = case_when(SE_vax == "Non_SE_vax" ~ "Non SE after vaccine",
+                            SE_vax == "SE_vax" ~ "SE after vaccine"))
+
+plot <- filt_imp_clones_sum %>%
+  ggplot(aes(y = Patient, x = n, fill = SE_vax)) +
+  geom_col(position = "fill") +
+  scale_fill_manual(values = c("white", "black"), name = "Category") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        axis.ticks.y = element_blank()) +
+  xlab("Proportion of\nIMP expanded clones\nthat are SE after vaccine") +
+  coord_cartesian(xlim = c(0, 1)) +
+  annotate("rect", col = "#920000FF", alpha = 0, size = 0.8,
+        xmin = -0.01, xmax = 1.01,
+        ymin = as.numeric(unique(filt_imp_clones_sum$Patient)[[1]]) - 0.44, 
+        ymax = as.numeric(unique(filt_imp_clones_sum$Patient)[[1]]) + 0.44) +
+  annotate("rect", col = "#920000FF", alpha = 0, size = 0.8,
+        xmin = -0.01, xmax = 1.01,
+        ymin = as.numeric(unique(filt_imp_clones_sum$Patient)[[2]]) - 0.44, 
+        ymax = as.numeric(unique(filt_imp_clones_sum$Patient)[[2]]) + 0.44) +
+  annotate("rect", col = "#920000FF", alpha = 0, size = 0.8,
+        xmin = -0.01, xmax = 1.01,
+        ymin = as.numeric(unique(filt_imp_clones_sum$Patient)[[3]]) - 0.44, 
+        ymax = as.numeric(unique(filt_imp_clones_sum$Patient)[[3]]) + 0.44) +
+  annotate("rect", col = "#920000FF", alpha = 0, size = 0.8,
+        xmin = -0.01, xmax = 1.01,
+        ymin = as.numeric(unique(filt_imp_clones_sum$Patient)[[4]]) - 0.44, 
+        ymax = as.numeric(unique(filt_imp_clones_sum$Patient)[[4]]) + 0.44) +
+  annotate("rect", col = "#920000FF", alpha = 0, size = 0.8,
+        xmin = -0.01, xmax = 1.01,
+        ymin = as.numeric(unique(filt_imp_clones_sum$Patient)[[5]]) - 0.44, 
+        ymax = as.numeric(unique(filt_imp_clones_sum$Patient)[[5]]) + 0.44) +
+  annotate("rect", col = "#920000FF", alpha = 0, size = 0.8,
+        xmin = -0.01, xmax = 1.01,
+        ymin = as.numeric(unique(filt_imp_clones_sum$Patient)[[6]]) - 0.44, 
+        ymax = as.numeric(unique(filt_imp_clones_sum$Patient)[[6]]) + 0.44) +
+  annotate("rect", col = "#920000FF", alpha = 0, size = 0.8,
+        xmin = -0.01, xmax = 1.01,
+        ymin = as.numeric(unique(filt_imp_clones_sum$Patient)[[7]]) - 0.44, 
+        ymax = as.numeric(unique(filt_imp_clones_sum$Patient)[[7]]) + 0.44) +
+  annotate("rect", col = "#920000FF", alpha = 0, size = 0.8,
+        xmin = -0.01, xmax = 1.01,
+        ymin = as.numeric(unique(filt_imp_clones_sum$Patient)[[8]]) - 0.44, 
+        ymax = as.numeric(unique(filt_imp_clones_sum$Patient)[[8]]) + 0.44) +
+  annotate("rect", col = "#920000FF", alpha = 0, size = 0.8,
+        xmin = -0.01, xmax = 1.01,
+        ymin = as.numeric(unique(filt_imp_clones_sum$Patient)[[9]]) - 0.44, 
+        ymax = as.numeric(unique(filt_imp_clones_sum$Patient)[[9]]) + 0.44)
+
+plot
+```
+## Get session info
+```{r}
+sessionInfo()
+```
+

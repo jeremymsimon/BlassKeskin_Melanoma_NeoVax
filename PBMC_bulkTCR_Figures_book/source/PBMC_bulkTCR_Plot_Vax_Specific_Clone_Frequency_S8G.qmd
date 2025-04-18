@@ -1,0 +1,143 @@
+# bulkTCRseq: Plot the frequency of vax-specific clones {sec-pbmc-vax-specific-frequency-plot}
+
+## Set up workspace
+```{r}
+library(geomtextpath)
+library(ggrepel)
+library(xlsx)
+library(tidyverse)
+library(dplyr)
+```
+
+## Load vax-specific clones
+```{r}
+tcr_names <- read.xlsx("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/Eryn_reactivity_results/EB_TCR to reconstructed 23Jul24.xlsx", sheetIndex = 1)
+reactivity <- read.csv("/jsimonlab/users/chloetu/melanoma/Melanoma_Eryn/analysis_093024/Eryn_reactivity_results/reformatted_reconstructed_TCR_072324.csv") %>%
+  left_join(tcr_names, by = c("TRAV_1", "TRAJ_1", "CDR3A_1", "TRBV_1", "TRBJ_1", "CDR3B_1", "Reactive")) %>%
+  mutate(Beta_clonotype = paste0(TRBV_1, ";", TRBJ_1, ";", CDR3B_1),
+         `TCR.` = paste0("TCR", `TCR.`),
+         Patient = paste0("P", Patient)) %>%
+  select(Beta_clonotype, Patient, `TCR.`)
+  
+reactivity %>%
+  dplyr::count(Patient)
+```
+
+## Load data
+```{r}
+p101_betas <- read.csv("p101_betas_merged_typed_full_Part3.csv")
+p103_betas <- read.csv("p103_betas_merged_typed_full_Part3.csv")
+p104_betas <- read.csv("p104_betas_merged_typed_full_Part3.csv")
+p108_betas <- read.csv("p108_betas_merged_typed_full_Part3.csv")
+```
+
+## Select reactive clones
+```{r}
+p101_betas_reactive <- p101_betas %>%
+  filter(Reactive == TRUE) %>%
+  left_join(reactivity, by = c("Beta_clonotype", "Patient"))
+p103_betas_reactive <- p103_betas %>%
+  filter(Reactive == TRUE) %>%
+  left_join(reactivity, by = c("Beta_clonotype", "Patient"))
+p104_betas_reactive <- p104_betas %>%
+  filter(Reactive == TRUE) %>%
+  left_join(reactivity, by = c("Beta_clonotype", "Patient"))
+p108_betas_reactive <- p108_betas %>%
+  filter(Reactive == TRUE) %>%
+  left_join(reactivity, by = c("Beta_clonotype", "Patient"))
+```
+
+## Massage data for frequency lineplot
+```{r}
+p101_lineplot_data <- p101_betas_reactive %>%
+  select(c(Beta_clonotype, p101_pretreatment, p101_prevax, p101_postvax, Reactive, Type, `TCR.`)) %>%
+  dplyr::rename("Pre-treatment" = "p101_pretreatment", "Pre-vax" = "p101_prevax", "Post-vax" = "p101_postvax") %>% 
+  pivot_longer(!c(Beta_clonotype, Reactive, Type, `TCR.`), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vax", "Post-vax")))
+
+p103_lineplot_data <- p103_betas_reactive %>%
+  select(c(Beta_clonotype, p103_pretreatment, p103_prevax, p103_postvax, p103_w48, p103_w72, Reactive, Type, `TCR.`)) %>%
+  dplyr::rename("Pre-treatment" = "p103_pretreatment", "Pre-vax" = "p103_prevax", "Post-vax" = "p103_postvax", "W48" = "p103_w48", "W72" = "p103_w72") %>% 
+  pivot_longer(!c(Beta_clonotype, Reactive, Type, `TCR.`), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vax", "Post-vax", "W48", "W72")))
+
+p104_lineplot_data <- p104_betas_reactive %>%
+  select(c(Beta_clonotype, p104_pretreatment, p104_prevax, p104_postvax, p104_w48, Reactive, Type, `TCR.`)) %>%
+  dplyr::rename("Pre-treatment" = "p104_pretreatment", "Pre-vax" = "p104_prevax", "Post-vax" = "p104_postvax", "W48" = "p104_w48") %>% 
+  pivot_longer(!c(Beta_clonotype, Reactive, Type, `TCR.`), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vax", "Post-vax", "W48")))
+
+p108_lineplot_data <- p108_betas_reactive %>%
+  select(c(Beta_clonotype, p108_pretreatment, p108_prevax, p108_postvax, p108_w32, Reactive, Type, `TCR.`)) %>%
+  dplyr::rename("Pre-treatment" = "p108_pretreatment", "Pre-vax" = "p108_prevax", "Post-vax" = "p108_postvax", "W32" = "p108_w32") %>% 
+  pivot_longer(!c(Beta_clonotype, Reactive, Type, `TCR.`), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vax", "Post-vax", "W32")))
+
+```
+
+## Objects for the LOD lines
+```{r}
+indiv_lod_line <- geom_hline(yintercept = 0.0001, linetype = "dashed", color = "red")
+p101_lod_annot <- annotate("text", x = as.numeric(p101_lineplot_data$Timepoint[[3]]) + 0.25, y = 0.00015, label = "LOD", size = 4, color = "red")
+p103_lod_annot <- annotate("text", x = as.numeric(p103_lineplot_data$Timepoint[[5]]) + 0.25, y = 0.00016, label = "LOD", size = 4, color = "red")
+p104_lod_annot <- annotate("text", x = as.numeric(p104_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00013, label = "LOD", size = 4, color = "red")
+p108_lod_annot <- annotate("text", x = as.numeric(p108_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00017, label = "LOD", size = 4, color = "red")
+```
+
+## Plot frequency plots for Fig S8G
+```{r, fig.width = 6.5, fig.height = 2.5}
+p101_lineplot_data %>%
+  ggplot(aes(x = Timepoint, y = Frequency, color = `Type`, group = `TCR.`, label = `TCR.`)) +
+  geom_textline(size = 3, fontface = 1, hjust = 0.95, vjust = -0.05) +
+  scale_color_manual(values = c("grey70", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(size = 7)) +
+  indiv_lod_line +
+  p101_lod_annot
+
+p103_lineplot_data %>%
+  ggplot(aes(x = Timepoint, y = Frequency, color = `Type`, group = `TCR.`, label = `TCR.`)) +
+  geom_textline(size = 3, fontface = 1, hjust = 0.98, vjust = -0.05) +
+  scale_color_manual(values = c("darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(size = 7)) +
+  indiv_lod_line +
+  p103_lod_annot
+
+p104_lineplot_data %>%
+  ggplot(aes(x = Timepoint, y = Frequency, color = `Type`, group = `TCR.`, label = `TCR.`)) +
+  geom_textline(size = 3, fontface = 1, aes(hjust = 0.9), vjust = -0.05) +
+  scale_color_manual(values = c("grey70", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(size = 7)) +
+  indiv_lod_line +
+  p104_lod_annot
+
+p108_lineplot_data %>%
+  ggplot(aes(x = Timepoint, y = Frequency, color = `Type`, group = `TCR.`, label = `TCR.`)) +
+  geom_textline(size = 3, fontface = 1, hjust = 0.95, vjust = -0.05) +
+  scale_color_manual(values = c("#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(size = 7)) +
+  indiv_lod_line +
+  p108_lod_annot
+
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
+

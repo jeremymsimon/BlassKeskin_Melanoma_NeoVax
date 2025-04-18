@@ -1,0 +1,78 @@
+# bulkTCRseq: Plot clonotype counts at the post-vaccine timepoint {sec-pbmc-postvaccine-clonotype-counts}
+
+## Set up workspace
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(patchwork)
+
+# Function to assign each clone from a dataframe with specific counts
+assign_counts_grp <- function(betas_typed_df){
+  betas_typed_df <- betas_typed_df %>%
+    dplyr::rename("umi" = 7) %>%
+    mutate(PostVax_counts = case_when(umi == 1 ~ "1",
+                                     umi > 1 & umi <= 3 ~ "2-3",
+                                     umi > 3 & umi <= 10 ~ "4-10",
+                                     umi > 10 & umi <= 30  ~ "11-30",
+                                     umi > 30 & umi <= 100 ~ "31-100",
+                                     umi > 100 ~ "100-MAX")) %>%
+    select(Beta_clonotype, Patient, Type, PostVax_counts)
+  return(betas_typed_df)
+}
+```
+
+## Load data
+```{r}
+p101_betas_typed <- read.csv("p101_betas_merged_typed_Part3.csv")
+p103_betas_typed <- read.csv("p103_betas_merged_typed_Part3.csv")
+p104_betas_typed <- read.csv("p104_betas_merged_typed_Part3.csv")
+p105_betas_typed <- read.csv("p105_betas_merged_typed_Part3.csv")
+p106_betas_typed <- read.csv("p106_betas_merged_typed_Part3.csv")
+p108_betas_typed <- read.csv("p108_betas_merged_typed_Part3.csv")
+p109_betas_typed <- read.csv("p109_betas_merged_typed_Part3.csv")
+p110_betas_typed <- read.csv("p110_betas_merged_typed_Part3.csv")
+p111_betas_typed <- read.csv("p111_betas_merged_typed_Part3.csv")
+```
+
+## Calculate and plot clonotype counts at the post-vaccine timepoint
+```{r}
+assigned_p101_postvax <- assign_counts_grp(p101_betas_typed)
+assigned_p103_postvax <- assign_counts_grp(p103_betas_typed)
+assigned_p104_postvax <- assign_counts_grp(p104_betas_typed)
+assigned_p105_postvax <- assign_counts_grp(p105_betas_typed)
+assigned_p106_postvax <- assign_counts_grp(p106_betas_typed)
+assigned_p108_postvax <- assign_counts_grp(p108_betas_typed)
+assigned_p109_postvax <- assign_counts_grp(p109_betas_typed)
+assigned_p110_postvax <- assign_counts_grp(p110_betas_typed)
+assigned_p111_postvax <- assign_counts_grp(p111_betas_typed)
+
+full <- rbind(assigned_p101_postvax, assigned_p103_postvax,
+              assigned_p104_postvax, assigned_p105_postvax, assigned_p106_postvax, assigned_p108_postvax, assigned_p109_postvax, assigned_p110_postvax, assigned_p111_postvax)  %>%
+  mutate(Type = factor(Type, levels = c("Other", "Existing", "Post-Nivolumab", "Post-Vaccine")),
+         PostVax_counts = factor(PostVax_counts, levels = c("1", "2-3", "4-10", "11-30", "31-100", "100-MAX")),
+         Type_PostVax_counts = paste0(Type, ":", PostVax_counts),
+         Type_PostVax_counts = factor(Type_PostVax_counts, 
+                                      levels = c("Existing:1", "Existing:2-3", "Existing:4-10", "Existing:11-30", "Existing:31-100", "Existing:100-MAX",
+                                                 "Post-Nivolumab:1", "Post-Nivolumab:2-3", "Post-Nivolumab:4-10", "Post-Nivolumab:11-30", "Post-Nivolumab:31-100", "Post-Nivolumab:100-MAX",
+                                                 "Post-Vaccine:1", "Post-Vaccine:2-3", "Post-Vaccine:4-10", "Post-Vaccine:11-30", "Post-Vaccine:31-100", "Post-Vaccine:100-MAX")))
+
+prop_bc <- full %>%
+  group_by(Patient, Type, Type_PostVax_counts) %>%
+  dplyr::count() %>%
+  filter(Type != "Other") %>%
+  ggplot(aes(x = Patient, y = n, fill = Type_PostVax_counts)) +
+  geom_col(position = "fill") +
+  scale_fill_manual(name = "Clonotype counts at the\npost-vaccine timepoint", values = c(colorRampPalette(c("grey95", "grey70"))(6), colorRampPalette(c("#f9df9e", "darkgoldenrod3"))(6), colorRampPalette(c("#C0E8FF", "#0072B2"))(5))) +
+  ylab("Proportion of Clones") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5))
+
+prop_bc
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
+

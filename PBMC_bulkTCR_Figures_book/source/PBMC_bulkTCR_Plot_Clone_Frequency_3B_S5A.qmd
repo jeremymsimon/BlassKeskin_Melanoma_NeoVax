@@ -1,0 +1,319 @@
+# bulkTCRseq: Plot the frequency of all clones {sec-pbmc-clone-frequency-plot}
+
+## Set up workspace
+```{r}
+# Libraries
+library(tidyverse)
+library(Seurat)
+library(dplyr)
+library(scRepertoire)
+```
+
+## Objects for the LOD lines
+```{r}
+indiv_lod_line <- geom_hline(yintercept = 0.0001, linetype = "dashed", color = "red")
+```
+
+## Load PBMC data
+```{r}
+p101_betas_typed <- read.csv("p101_betas_merged_typed_full_Part3.csv")
+p103_betas_typed <- read.csv("p103_betas_merged_typed_full_Part3.csv")
+p104_betas_typed <- read.csv("p104_betas_merged_typed_full_Part3.csv")
+p105_betas_typed <- read.csv("p105_betas_merged_typed_full_Part3.csv")
+p106_betas_typed <- read.csv("p106_betas_merged_typed_full_Part3.csv")
+p108_betas_typed <- read.csv("p108_betas_merged_typed_full_Part3.csv")
+p109_betas_typed <- read.csv("p109_betas_merged_typed_full_Part3.csv")
+p110_betas_typed <- read.csv("p110_betas_merged_typed_full_Part3.csv")
+p111_betas_typed <- read.csv("p111_betas_merged_typed_full_Part3.csv")
+```
+
+## Massage data for frequency lineplot with 4 TCR types
+```{r}
+p101_lineplot_data <- p101_betas_typed %>%
+  select(c(Beta_clonotype, p101_pretreatment, p101_prevax, p101_postvax, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p101_pretreatment", "Pre-vaccine" = "p101_prevax", "Post-vaccine" = "p101_postvax") %>% 
+  pivot_longer(!c(Beta_clonotype, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vaccine", "Post-vaccine")),
+         Type = factor(Type, levels = c("Other", "Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p103_lineplot_data <- p103_betas_typed %>%
+  select(c(Beta_clonotype, p103_pretreatment, p103_prevax, p103_postvax, p103_w48, p103_w72, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p103_pretreatment", "Pre-vaccine" = "p103_prevax", "Post-vaccine" = "p103_postvax", "W48" = "p103_w48", "W72" = "p103_w72") %>% 
+  pivot_longer(!c(Beta_clonotype, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vaccine", "Post-vaccine", "W48", "W72")),
+         Type = factor(Type, levels = c("Other", "Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p104_lineplot_data <- p104_betas_typed %>%
+  select(c(Beta_clonotype, p104_pretreatment, p104_prevax, p104_postvax, p104_w48, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p104_pretreatment", "Pre-vaccine" = "p104_prevax", "Post-vaccine" = "p104_postvax", "W48" = "p104_w48") %>% 
+  pivot_longer(!c(Beta_clonotype, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vaccine", "Post-vaccine", "W48")),
+         Type = factor(Type, levels = c("Other", "Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p105_lineplot_data <- p105_betas_typed %>%
+  select(c(Beta_clonotype, p105_pretreatment, p105_prevax, p105_postvax, p105_w48, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p105_pretreatment", "Pre-vaccine" = "p105_prevax", "Post-vaccine" = "p105_postvax", "W48" = "p105_w48") %>% 
+  pivot_longer(!c(Beta_clonotype, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vaccine", "Post-vaccine", "W48")),
+         Type = factor(Type, levels = c("Other", "Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p106_lineplot_data <- p106_betas_typed %>%
+  select(c(Beta_clonotype, p106_pretreatment, p106_prevax, p106_postvax, p106_w48, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p106_pretreatment", "Pre-vaccine" = "p106_prevax", "Post-vaccine" = "p106_postvax", "W48" = "p106_w48") %>% 
+  pivot_longer(!c(Beta_clonotype, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vaccine", "Post-vaccine", "W48")),
+         Type = factor(Type, levels = c("Other", "Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p108_lineplot_data <- p108_betas_typed %>%
+  select(c(Beta_clonotype, p108_pretreatment, p108_prevax, p108_postvax, p108_w32, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p108_pretreatment", "Pre-vaccine" = "p108_prevax", "Post-vaccine" = "p108_postvax", "W32" = "p108_w32") %>% 
+  pivot_longer(!c(Beta_clonotype, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vaccine", "Post-vaccine", "W32")),
+         Type = factor(Type, levels = c("Other", "Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p109_lineplot_data <- p109_betas_typed %>%
+  select(c(Beta_clonotype, p109_pretreatment, p109_prevax, p109_postvax, p109_w48, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p109_pretreatment", "Pre-vaccine" = "p109_prevax", "Post-vaccine" = "p109_postvax", "W48" = "p109_w48") %>% 
+  pivot_longer(!c(Beta_clonotype, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vaccine", "Post-vaccine", "W48")),
+         Type = factor(Type, levels = c("Other", "Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p110_lineplot_data <- p110_betas_typed %>%
+  select(c(Beta_clonotype, p110_pretreatment, p110_prevax, p110_postvax, p110_w38, Type)) %>%
+  dplyr::rename("Pre-treatment" = "p110_pretreatment", "Pre-vaccine" = "p110_prevax", "Post-vaccine" = "p110_postvax", "W38" = "p110_w38") %>% 
+  pivot_longer(!c(Beta_clonotype, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vaccine", "Post-vaccine", "W38")),
+         Type = factor(Type, levels = c("Other", "Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+
+p111_lineplot_data <- p111_betas_typed %>%
+  select(c(Beta_clonotype, p111_pretreatment, p111_prevax, p111_postvax, p111_w40,  Type)) %>%
+  dplyr::rename("Pre-treatment" = "p111_pretreatment", "Pre-vaccine" = "p111_prevax", "Post-vaccine" = "p111_postvax", "W40" = "p111_w40") %>% 
+  pivot_longer(!c(Beta_clonotype, Type), names_to = "Timepoint", values_to = "Frequency") %>%
+  mutate(Frequency = replace_na(Frequency, 0),
+         Timepoint = factor(Timepoint, levels = c("Pre-treatment", "Pre-vaccine", "Post-vaccine", "W40")),
+         Type = factor(Type, levels = c("Other", "Existing", "Post-Nivolumab", "Post-Vaccine")),
+         Beta_clonotype = forcats::fct_reorder(as.factor(Beta_clonotype), rank(Type)))
+```
+
+## Plot frequency over time across 4 TCR types in P101 and P103
+```{r}
+p101_lp <- p101_lineplot_data %>%
+  ggplot(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype)) +
+  geom_line() +
+  scale_color_manual(values = c("grey90", "grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P101") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5)) +
+  indiv_lod_line +
+  annotate("text", x = as.numeric(p101_lineplot_data$Timepoint[[3]]) + 0.25, y = 0.00013, label = "LOD", size = 4, color = "red")
+
+p103_lp <- p103_lineplot_data %>%
+  ggplot(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype)) +
+  geom_line() +
+  scale_color_manual(values = c("grey90", "grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P103") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5)) +
+  indiv_lod_line +
+  annotate("text", x = as.numeric(p103_lineplot_data$Timepoint[[5]]) + 0.25, y = 0.00013, label = "LOD", size = 4, color = "red")
+
+p104_lp <- p104_lineplot_data %>%
+  ggplot(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype)) +
+  geom_line() +
+  scale_color_manual(values = c("grey90", "grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P104") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5)) +
+  indiv_lod_line +
+  annotate("text", x = as.numeric(p104_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00013, label = "LOD", size = 4, color = "red")
+
+p105_lp <- p105_lineplot_data %>%
+  ggplot(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype)) +
+  geom_line() +
+  scale_color_manual(values = c("grey90", "grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P105") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5)) +
+  indiv_lod_line +
+  annotate("text", x = as.numeric(p105_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00013, label = "LOD", size = 4, color = "red")
+
+p106_lp <- p106_lineplot_data %>%
+  ggplot(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype)) +
+  geom_line() +
+  scale_color_manual(values = c("grey90", "grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P106") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5)) +
+  indiv_lod_line +
+  annotate("text", x = as.numeric(p106_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00013, label = "LOD", size = 4, color = "red")
+
+p108_lp <- p108_lineplot_data %>%
+  ggplot(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype)) +
+  geom_line() +
+  scale_color_manual(values = c("grey90", "grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P108") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5)) +
+  indiv_lod_line +
+  annotate("text", x = as.numeric(p108_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00013, label = "LOD", size = 4, color = "red")
+
+p109_lp <- p109_lineplot_data %>%
+  ggplot(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype)) +
+  geom_line() +
+  scale_color_manual(values = c("grey90", "grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P109") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5)) +
+  indiv_lod_line +
+  annotate("text", x = as.numeric(p109_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00013, label = "LOD", size = 4, color = "red")
+
+p110_lp <- p110_lineplot_data %>%
+  ggplot(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype)) +
+  geom_line() +
+  scale_color_manual(values = c("grey90", "grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P110") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5)) +
+  indiv_lod_line +
+  annotate("text", x = as.numeric(p110_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00013, label = "LOD", size = 4, color = "red")
+
+p111_lp <- p111_lineplot_data %>%
+  ggplot(aes(x = Timepoint, y = Frequency, color = Type, group = Beta_clonotype)) +
+  geom_line() +
+  scale_color_manual(values = c("grey90", "grey70", "darkgoldenrod3", "#0072B2")) +
+  scale_y_log10() +
+  annotation_logticks(sides = "l") +
+  ggtitle("P111") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5)) +
+  indiv_lod_line +
+  annotate("text", x = as.numeric(p111_lineplot_data$Timepoint[[4]]) + 0.25, y = 0.00013, label = "LOD", size = 4, color = "red")
+```
+
+## Save P103's lineplot as Fig 3B
+```{r}
+p103_lp +
+  annotate("segment", x = as.numeric(p103_lineplot_data$Timepoint[[2]]) - 0.3, xend = as.numeric(p103_lineplot_data$Timepoint[[5]]), y = 6, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "darkgoldenrod1", col = 'darkgoldenrod1',
+            arrow = arrow(type = "closed", length = unit(0.01, "npc"))) +
+  annotate("text", x = as.numeric(p103_lineplot_data$Timepoint[[2]]) - 0.7, y = 6, label = "Nivolumab", size = 3) +
+  annotate("segment", x = as.numeric(p103_lineplot_data$Timepoint[[3]]) - 0.3, xend = as.numeric(p103_lineplot_data$Timepoint[[3]]) + 0.4, y = 8, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "deepskyblue", col = 'deepskyblue',
+            arrow = arrow(type = "closed", length = unit(0.00, "npc"))) +
+  annotate("text", x = as.numeric(p103_lineplot_data$Timepoint[[3]]) - 0.6, y = 8.5, label = "Vaccine", size = 3)
+```
+
+## Save the other patients' lineplots as Fig S5A
+```{r}
+p101_lp  +
+  annotate("segment", x = as.numeric(p101_lineplot_data$Timepoint[[2]]) - 0.3, xend = as.numeric(p101_lineplot_data$Timepoint[[3]]), y = 6, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "darkgoldenrod1", col = 'darkgoldenrod1',
+            arrow = arrow(type = "closed", length = unit(0.01, "npc"))) +
+  annotate("text", x = as.numeric(p101_lineplot_data$Timepoint[[2]]) - 0.6, y = 6, label = "Nivolumab", size = 3) +
+  annotate("segment", x = as.numeric(p101_lineplot_data$Timepoint[[3]]) - 0.3, xend = as.numeric(p101_lineplot_data$Timepoint[[3]]), y = 8, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "deepskyblue", col = 'deepskyblue',
+            arrow = arrow(type = "closed", length = unit(0.01, "npc"))) +
+  annotate("text", x = as.numeric(p101_lineplot_data$Timepoint[[3]]) - 0.55, y = 8.5, label = "Vaccine", size = 3)
+p104_lp  +
+  annotate("segment", x = as.numeric(p104_lineplot_data$Timepoint[[2]]) - 0.3, xend = as.numeric(p104_lineplot_data$Timepoint[[3]]) + 0.84, y = 3, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "darkgoldenrod1", col = 'darkgoldenrod1',
+            arrow = arrow(type = "closed", length = unit(0.00, "npc"))) +
+  annotate("text", x = as.numeric(p104_lineplot_data$Timepoint[[2]]) - 0.7, y = 3, label = "Nivolumab", size = 3) +
+  annotate("segment", x = as.numeric(p104_lineplot_data$Timepoint[[3]]) - 0.3, xend = as.numeric(p104_lineplot_data$Timepoint[[3]]) + 0.46, y = 4, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "deepskyblue", col = 'deepskyblue',
+            arrow = arrow(type = "closed", length = unit(0, "npc"))) +
+  annotate("text", x = as.numeric(p104_lineplot_data$Timepoint[[3]]) - 0.6, y = 4, label = "Vaccine", size = 3)
+p105_lp +
+  annotate("segment", x = as.numeric(p105_lineplot_data$Timepoint[[2]]) - 0.3, xend = as.numeric(p105_lineplot_data$Timepoint[[3]]) + 0.85, y = 3, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "darkgoldenrod1", col = 'darkgoldenrod1',
+            arrow = arrow(type = "closed", length = unit(0.00, "npc"))) +
+  annotate("text", x = as.numeric(p105_lineplot_data$Timepoint[[2]]) - 0.7, y = 3, label = "Nivolumab", size = 3) +
+  annotate("segment", x = as.numeric(p105_lineplot_data$Timepoint[[3]]) - 0.3, xend = as.numeric(p105_lineplot_data$Timepoint[[3]]) + 0.35, y = 4, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "deepskyblue", col = 'deepskyblue',
+            arrow = arrow(type = "closed", length = unit(0, "npc"))) +
+  annotate("text", x = as.numeric(p105_lineplot_data$Timepoint[[3]]) - 0.6, y = 4, label = "Vaccine", size = 3)
+p106_lp +
+  annotate("segment", x = as.numeric(p106_lineplot_data$Timepoint[[2]]) - 0.3, xend = as.numeric(p106_lineplot_data$Timepoint[[3]]) + 0.87, y = 3, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "darkgoldenrod1", col = 'darkgoldenrod1',
+            arrow = arrow(type = "closed", length = unit(0.00, "npc"))) +
+  annotate("text", x = as.numeric(p106_lineplot_data$Timepoint[[2]]) - 0.7, y = 3, label = "Nivolumab", size = 3) +
+  annotate("segment", x = as.numeric(p106_lineplot_data$Timepoint[[3]]) - 0.3, xend = as.numeric(p106_lineplot_data$Timepoint[[3]]) + 0.32, y = 4, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "deepskyblue", col = 'deepskyblue',
+            arrow = arrow(type = "closed", length = unit(0, "npc"))) +
+  annotate("text", x = as.numeric(p106_lineplot_data$Timepoint[[3]]) - 0.6, y = 4, label = "Vaccine", size = 3)
+p108_lp +
+  annotate("segment", x = as.numeric(p108_lineplot_data$Timepoint[[2]]) - 0.3, xend = as.numeric(p108_lineplot_data$Timepoint[[3]]) + 0.72, y = 3, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "darkgoldenrod1", col = 'darkgoldenrod1',
+            arrow = arrow(type = "closed", length = unit(0.00, "npc"))) +
+  annotate("text", x = as.numeric(p108_lineplot_data$Timepoint[[2]]) - 0.7, y = 3, label = "Nivolumab", size = 3) +
+  annotate("segment", x = as.numeric(p108_lineplot_data$Timepoint[[3]]) - 0.3, xend = as.numeric(p108_lineplot_data$Timepoint[[3]]) + 0.63, y = 4, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "deepskyblue", col = 'deepskyblue',
+            arrow = arrow(type = "closed", length = unit(0, "npc"))) +
+  annotate("text", x = as.numeric(p108_lineplot_data$Timepoint[[3]]) - 0.6, y = 4, label = "Vaccine", size = 3)
+p109_lp +
+  annotate("segment", x = as.numeric(p109_lineplot_data$Timepoint[[2]]) - 0.3, xend = as.numeric(p109_lineplot_data$Timepoint[[3]]) + 0.86, y = 3, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "darkgoldenrod1", col = 'darkgoldenrod1',
+            arrow = arrow(type = "closed", length = unit(0.00, "npc"))) +
+  annotate("text", x = as.numeric(p109_lineplot_data$Timepoint[[2]]) - 0.7, y = 3, label = "Nivolumab", size = 3) +
+  annotate("segment", x = as.numeric(p109_lineplot_data$Timepoint[[3]]) - 0.3, xend = as.numeric(p109_lineplot_data$Timepoint[[3]]) + 0.57, y = 4, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "deepskyblue", col = 'deepskyblue',
+            arrow = arrow(type = "closed", length = unit(0, "npc"))) +
+  annotate("text", x = as.numeric(p109_lineplot_data$Timepoint[[3]]) - 0.6, y = 4, label = "Vaccine", size = 3)
+p110_lp +
+  annotate("segment", x = as.numeric(p110_lineplot_data$Timepoint[[2]]) - 0.3, xend = as.numeric(p110_lineplot_data$Timepoint[[4]]), y = 6, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "darkgoldenrod1", col = 'darkgoldenrod1',
+            arrow = arrow(type = "closed", length = unit(0.01, "npc"))) +
+  annotate("text", x = as.numeric(p110_lineplot_data$Timepoint[[2]]) - 0.7, y = 6, label = "Nivolumab", size = 3) +
+  annotate("segment", x = as.numeric(p110_lineplot_data$Timepoint[[3]]) - 0.3, xend = as.numeric(p110_lineplot_data$Timepoint[[3]]) + 0.55, y = 8, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "deepskyblue", col = 'deepskyblue',
+            arrow = arrow(type = "closed", length = unit(0, "npc"))) +
+  annotate("text", x = as.numeric(p110_lineplot_data$Timepoint[[3]]) - 0.6, y = 8.5, label = "Vaccine", size = 3)
+p111_lp +
+  annotate("segment", x = as.numeric(p111_lineplot_data$Timepoint[[2]]) - 0.3, xend = as.numeric(p111_lineplot_data$Timepoint[[3]]) + 0.68, y = 2, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "darkgoldenrod1", col = 'darkgoldenrod1',
+            arrow = arrow(type = "closed", length = unit(0, "npc"))) +
+  annotate("text", x = as.numeric(p111_lineplot_data$Timepoint[[2]]) - 0.7, y = 2, label = "Nivolumab", size = 3) +
+  annotate("segment", x = as.numeric(p111_lineplot_data$Timepoint[[3]]) - 0.3, xend = as.numeric(p111_lineplot_data$Timepoint[[3]]) + 0.5, y = 2.5, size = 3.5, linejoin = "mitre",
+           alpha = 1,fill = "deepskyblue", col = 'deepskyblue',
+            arrow = arrow(type = "closed", length = unit(0, "npc"))) +
+  annotate("text", x = as.numeric(p111_lineplot_data$Timepoint[[3]]) - 0.6, y = 2.5, label = "Vaccine", size = 3)
+
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
+

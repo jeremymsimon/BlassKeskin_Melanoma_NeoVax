@@ -1,0 +1,269 @@
+# bulkTCRseq: IMP-expanded clones {sec-pbmc-imp-expanded-ridgeplot}
+
+## Set up workspace
+```{r}
+# Libraries
+library(dplyr)
+library(tidyverse)
+library(ggpointdensity)
+library(ggplot2)
+library(patchwork)
+library(ggridges)
+```
+
+## Load all clones
+```{r}
+p101_betas_typed <- read.csv("p101_betas_merged_typed_Part3.csv")
+p103_betas_typed <- read.csv("p103_betas_merged_typed_Part3.csv")
+p104_betas_typed <- read.csv("p104_betas_merged_typed_Part3.csv")
+p105_betas_typed <- read.csv("p105_betas_merged_typed_Part3.csv")
+p106_betas_typed <- read.csv("p106_betas_merged_typed_Part3.csv")
+p108_betas_typed <- read.csv("p108_betas_merged_typed_Part3.csv")
+p109_betas_typed <- read.csv("p109_betas_merged_typed_Part3.csv")
+p110_betas_typed <- read.csv("p110_betas_merged_typed_Part3.csv")
+p111_betas_typed <- read.csv("p111_betas_merged_typed_Part3.csv")
+```
+
+## Load cutoffs
+```{r}
+cutoff_df <- read.csv("IMP_expanded_cuotff_Part3.csv")
+
+p101_min_x <- cutoff_df %>%
+  filter(Patient == "P101") %>%
+  pull(invitro_exp_cutoff)
+p103_min_x <- cutoff_df %>%
+  filter(Patient == "P103") %>%
+  pull(invitro_exp_cutoff)
+p104_min_x <- cutoff_df %>%
+  filter(Patient == "P104") %>%
+  pull(invitro_exp_cutoff)
+p105_min_x <- cutoff_df %>%
+  filter(Patient == "P105") %>%
+  pull(invitro_exp_cutoff)
+p106_min_x <- cutoff_df %>%
+  filter(Patient == "P106") %>%
+  pull(invitro_exp_cutoff)
+p108_min_x <- cutoff_df %>%
+  filter(Patient == "P108") %>%
+  pull(invitro_exp_cutoff)
+p109_min_x <- cutoff_df %>%
+  filter(Patient == "P109") %>%
+  pull(invitro_exp_cutoff)
+p110_min_x <- cutoff_df %>%
+  filter(Patient == "P110") %>%
+  pull(invitro_exp_cutoff)
+p111_min_x <- cutoff_df %>%
+  filter(Patient == "P111") %>%
+  pull(invitro_exp_cutoff)
+```
+
+## Reorder Type factor
+```{r}
+p101_betas_typed <- p101_betas_typed %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p103_betas_typed <- p103_betas_typed %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p104_betas_typed <- p104_betas_typed %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p105_betas_typed <- p105_betas_typed %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p106_betas_typed <- p106_betas_typed %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p108_betas_typed <- p108_betas_typed %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p109_betas_typed <- p109_betas_typed %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p110_betas_typed <- p110_betas_typed %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+p111_betas_typed <- p111_betas_typed %>%
+  mutate(Type = factor(Type, levels = c("Post-Vaccine", "Post-Nivolumab", "Existing")))
+```
+
+## Ridgeplot of in vitro expansion values with rug
+```{r, fig.width=6, fig.height=3}
+# Create a rug of clones' expansion values
+p101_rp <- p101_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(aes(point_color = factor(after_stat(x) > log2(p101_min_x)), point_alpha = factor(after_stat(x) > log2(p101_min_x))), jittered_points = TRUE,
+    position = position_points_jitter(width = 0, height = 0, yoffset = -0.2), # Rug
+    point_shape = '|', point_size = 3, #point_alpha = 0.7, 
+    alpha = 0.7,
+    bandwidth = 0.3, scale = 2) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  scale_discrete_manual(aesthetics = "point_color", values = c('black', "#920000FF"), guide = "none") +
+  scale_discrete_manual(aesthetics = "point_alpha", values = c(0.1, 0.7), guide = "none") +
+  xlab(expression(atop(italic("In vitro")~"expansion",~log[2]("PoolA,B peptides / DMSO")))) +
+  ylab("Number of clones") +
+  ggtitle("P101") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(vjust=0)) + 
+  geom_vline(xintercept = log2(p101_min_x), color = "black", linetype="dashed") +
+  coord_cartesian(clip = "off")
+
+p103_rp <- p103_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(aes(point_color = factor(after_stat(x) > log2(p103_min_x)), point_alpha = factor(after_stat(x) > log2(p103_min_x))), jittered_points = TRUE,
+    position = position_points_jitter(width = 0, height = 0, yoffset = -0.2), # Rug
+    point_shape = '|', point_size = 3, #point_alpha = 0.7, 
+    alpha = 0.7,
+    bandwidth = 0.3, scale = 2) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  scale_discrete_manual(aesthetics = "point_color", values = c('black', "#920000FF"), guide = "none") +
+  scale_discrete_manual(aesthetics = "point_alpha", values = c(0.1, 0.7), guide = "none") +
+  xlab(expression(atop(italic("In vitro")~"expansion",~log[2]("PoolA,B peptides / DMSO")))) +
+  ylab("Number of clones") +
+  ggtitle("P103") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(vjust=0)) + 
+  geom_vline(xintercept = log2(p103_min_x), color = "black", linetype="dashed") +
+  coord_cartesian(clip = "off")
+
+p104_rp <- p104_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(aes(point_color = factor(after_stat(x) > log2(p104_min_x)), point_alpha = factor(after_stat(x) > log2(p104_min_x))), jittered_points = TRUE,
+    position = position_points_jitter(width = 0, height = 0, yoffset = -0.2), # Rug
+    point_shape = '|', point_size = 3, #point_alpha = 0.7, 
+    alpha = 0.7,
+    bandwidth = 0.3, scale = 2) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  scale_discrete_manual(aesthetics = "point_color", values = c('black', "#920000FF"), guide = "none") +
+  scale_discrete_manual(aesthetics = "point_alpha", values = c(0.1, 0.7), guide = "none") +
+  xlab(expression(atop(italic("In vitro")~"expansion",~log[2]("PoolA,B peptides / DMSO")))) +
+  ylab("Number of clones") +
+  ggtitle("P104") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(vjust=0)) + 
+  geom_vline(xintercept = log2(p104_min_x), color = "black", linetype="dashed") +
+  coord_cartesian(clip = "off")
+
+p105_rp <- p105_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(aes(point_color = factor(after_stat(x) > log2(p105_min_x)), point_alpha = factor(after_stat(x) > log2(p105_min_x))), jittered_points = TRUE,
+    position = position_points_jitter(width = 0, height = 0, yoffset = -0.2), # Rug
+    point_shape = '|', point_size = 3, #point_alpha = 0.7, 
+    alpha = 0.7,
+    bandwidth = 0.3, scale = 2) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  scale_discrete_manual(aesthetics = "point_color", values = c('black', "#920000FF"), guide = "none") +
+  scale_discrete_manual(aesthetics = "point_alpha", values = c(0.1, 0.7), guide = "none") +
+  xlab(expression(atop(italic("In vitro")~"expansion",~log[2]("PoolA,B peptides / DMSO")))) +
+  ylab("Number of clones") +
+  ggtitle("P105") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(vjust=0)) + 
+  geom_vline(xintercept = log2(p105_min_x), color = "black", linetype="dashed") +
+  coord_cartesian(clip = "off")
+
+p106_rp <- p106_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(aes(point_color = factor(after_stat(x) > log2(p106_min_x)), point_alpha = factor(after_stat(x) > log2(p106_min_x))), jittered_points = TRUE,
+    position = position_points_jitter(width = 0, height = 0, yoffset = -0.2), # Rug
+    point_shape = '|', point_size = 3, #point_alpha = 0.7, 
+    alpha = 0.7,
+    bandwidth = 0.3, scale = 2) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  scale_discrete_manual(aesthetics = "point_color", values = c('black', "#920000FF"), guide = "none") +
+  scale_discrete_manual(aesthetics = "point_alpha", values = c(0.1, 0.7), guide = "none") +
+  xlab(expression(atop(italic("In vitro")~"expansion",~log[2]("PoolA,B peptides / DMSO")))) +
+  ylab("Number of clones") +
+  ggtitle("P106") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(vjust=0)) + 
+  geom_vline(xintercept = log2(p106_min_x), color = "black", linetype="dashed") +
+  coord_cartesian(clip = "off")
+
+p108_rp <- p108_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(aes(point_color = factor(after_stat(x) > log2(p108_min_x)), point_alpha = factor(after_stat(x) > log2(p108_min_x))), jittered_points = TRUE,
+    position = position_points_jitter(width = 0, height = 0, yoffset = -0.2), # Rug
+    point_shape = '|', point_size = 3, #point_alpha = 0.7, 
+    alpha = 0.7,
+    bandwidth = 0.3, scale = 2) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  scale_discrete_manual(aesthetics = "point_color", values = c('black', "#920000FF"), guide = "none") +
+  scale_discrete_manual(aesthetics = "point_alpha", values = c(0.1, 0.7), guide = "none") +
+  xlab(expression(atop(italic("In vitro")~"expansion",~log[2]("PoolA,B peptides / DMSO")))) +
+  ylab("Number of clones") +
+  ggtitle("P108") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(vjust=0)) + 
+  geom_vline(xintercept = log2(p108_min_x), color = "black", linetype="dashed") +
+  coord_cartesian(clip = "off")
+
+p109_rp <- p109_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(aes(point_color = factor(after_stat(x) > log2(p109_min_x)), point_alpha = factor(after_stat(x) > log2(p109_min_x))), jittered_points = TRUE,
+    position = position_points_jitter(width = 0, height = 0, yoffset = -0.2), # Rug
+    point_shape = '|', point_size = 3, #point_alpha = 0.7, 
+    alpha = 0.7,
+    bandwidth = 0.3, scale = 2) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  scale_discrete_manual(aesthetics = "point_color", values = c('black', "#920000FF"), guide = "none") +
+  scale_discrete_manual(aesthetics = "point_alpha", values = c(0.1, 0.7), guide = "none") +
+  xlab(expression(atop(italic("In vitro")~"expansion",~log[2]("PoolA,B peptides / DMSO")))) +
+  ylab("Number of clones") +
+  ggtitle("P109") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(vjust=0)) + 
+  geom_vline(xintercept = log2(p109_min_x), color = "black", linetype="dashed") +
+  coord_cartesian(clip = "off")
+
+p110_rp <- p110_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(aes(point_color = factor(after_stat(x) > log2(p110_min_x)), point_alpha = factor(after_stat(x) > log2(p110_min_x))), jittered_points = TRUE,
+    position = position_points_jitter(width = 0, height = 0, yoffset = -0.2), # Rug
+    point_shape = '|', point_size = 3, #point_alpha = 0.7, 
+    alpha = 0.7,
+    bandwidth = 0.3, scale = 2) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  scale_discrete_manual(aesthetics = "point_color", values = c('black', "#920000FF"), guide = "none") +
+  scale_discrete_manual(aesthetics = "point_alpha", values = c(0.1, 0.7), guide = "none") +
+  xlab(expression(atop(italic("In vitro")~"expansion",~log[2]("PoolA,B peptides / DMSO")))) +
+  ylab("Number of clones") +
+  ggtitle("P110") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(vjust=0)) + 
+  geom_vline(xintercept = log2(p110_min_x), color = "black", linetype="dashed") +
+  coord_cartesian(clip = "off")
+
+p111_rp <- p111_betas_typed %>%
+  ggplot(aes(x = log2(max_fc_pool_vs_dmso), y = Type, fill = Type)) +
+  geom_density_ridges(aes(point_color = factor(after_stat(x) > log2(p111_min_x)), point_alpha = factor(after_stat(x) > log2(p111_min_x))), jittered_points = TRUE,
+    position = position_points_jitter(width = 0, height = 0, yoffset = -0.2), # Rug
+    point_shape = '|', point_size = 3, #point_alpha = 0.7, 
+    alpha = 0.7,
+    bandwidth = 0.3, scale = 2.5) +
+  scale_fill_manual(values = c("#0072B2", "darkgoldenrod3", "grey70")) +
+  scale_discrete_manual(aesthetics = "point_color", values = c('black', "#920000FF"), guide = "none") +
+  scale_discrete_manual(aesthetics = "point_alpha", values = c(0.1, 0.7), guide = "none") +
+  xlab(expression(atop(italic("In vitro")~"expansion",~log[2]("PoolA,B peptides / DMSO")))) +
+  ylab("Number of clones") +
+  ggtitle("P111") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5),
+        axis.text.x = element_text(vjust=0)) + 
+  geom_vline(xintercept = log2(p111_min_x), color = "black", linetype="dashed") +
+  coord_cartesian(clip = "off")
+
+```
+
+## Patchwork together for Fig 3E
+```{r, fig.width = 10, fig.height = 6}
+rp <- p101_rp + p103_rp + p104_rp + p105_rp + p106_rp + p108_rp + p109_rp + p110_rp + p111_rp + plot_layout(guides = "collect", axis_titles = "collect")
+
+rp 
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
+

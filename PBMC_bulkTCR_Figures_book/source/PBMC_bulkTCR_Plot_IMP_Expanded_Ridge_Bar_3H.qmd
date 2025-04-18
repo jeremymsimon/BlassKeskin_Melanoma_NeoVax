@@ -1,0 +1,123 @@
+# bulkTCRseq: IMP-expanded clones Repertoire Fraction {sec-pbmc-imp-expanded-ridgeplot-barplot}
+
+## Set up workspace
+```{r}
+# Libraries
+library(dplyr)
+library(tidyverse)
+library(Seurat)
+library(ggvenn)
+library(ggridges)
+```
+
+## Load patient colors
+```{r}
+pt_cols <- readRDS("Part0_Patient_Color.rds")
+pt_fill <- readRDS("Part0_Patient_Fill.rds")
+```
+
+## Open bulkTCR typed clones
+```{r}
+p101_betas_typed <- read.csv("p101_betas_merged_typed_Part3.csv")
+p103_betas_typed <- read.csv("p103_betas_merged_typed_Part3.csv")
+p104_betas_typed <- read.csv("p104_betas_merged_typed_Part3.csv")
+p105_betas_typed <- read.csv("p105_betas_merged_typed_Part3.csv")
+p106_betas_typed <- read.csv("p106_betas_merged_typed_Part3.csv")
+p108_betas_typed <- read.csv("p108_betas_merged_typed_Part3.csv")
+p109_betas_typed <- read.csv("p109_betas_merged_typed_Part3.csv")
+p110_betas_typed <- read.csv("p110_betas_merged_typed_Part3.csv")
+p111_betas_typed <- read.csv("p111_betas_merged_typed_Part3.csv")
+
+betas_typed <- list(p101_betas_typed = p101_betas_typed,
+                    p103_betas_typed = p103_betas_typed,
+                    p104_betas_typed = p104_betas_typed,
+                    p105_betas_typed = p105_betas_typed,
+                    p106_betas_typed = p106_betas_typed,
+                    p108_betas_typed = p108_betas_typed,
+                    p109_betas_typed = p109_betas_typed,
+                    p110_betas_typed = p110_betas_typed,
+                    p111_betas_typed = p111_betas_typed)
+```
+
+## Compare the distribution of IMP-expanded vs non-expanded clones
+```{r}
+# Collect the columns of interest and rename
+select_postvax_cols <- function(df){
+  postvax <- df[,grep(".*postvax($|_umi)", colnames(df))]
+  colnames(postvax) <- c("postvax_freq", "postvax_umi")
+  df <- df[, c("Beta_clonotype", "Type", "Patient", "expanded_local_min")]
+  df <- cbind(df, postvax)
+  return(df)
+}
+
+postvax_tp.list <- lapply(betas_typed, select_postvax_cols)
+
+postvax_tp <- do.call(rbind, postvax_tp.list)
+```
+
+## Plot the frequency of IMP-expanded clones after vaccination for Fig 3H middle
+```{r, fig.width = 4, fig.height = 5}
+p1 <- postvax_tp %>%
+  filter(expanded_local_min == TRUE) %>% 
+  mutate(Patient = factor(Patient, levels = c("P101", "P104", "P109", "P108", "P105", "P111", "P106", "P110", "P103"))) %>%
+  ggplot(aes(x = postvax_freq, y = Patient, fill = Patient)) +
+  geom_density_ridges(alpha = 0.5, scale = 1) +
+  scale_x_log10() +
+  pt_fill +
+  theme_classic() +
+  xlab("Frequency of IMP-expanded \nclones after vaccination\n")
+
+n_expanded_postvax <- postvax_tp %>%
+  filter(expanded_local_min == TRUE) %>%
+  group_by(Patient) %>%
+  dplyr::count() %>%
+  mutate(Patient = factor(Patient, levels = c("P101", "P104", "P109", "P108", "P105", "P111", "P106", "P110", "P103")),
+         x = 0.08,
+         n = paste0("n=",n))
+
+p1 + geom_text(data = n_expanded_postvax, 
+              aes(y = as.numeric(Patient) + 0.1, x = x, label = n),
+              position=position_nudge(y= .25), 
+              colour="black", 
+              size=3.5)
+
+```
+
+## Plot clonal dominance of IMP-expanded clones after vaccination for Fig 3H right
+```{r}
+fct_expanded <- postvax_tp %>%
+  group_by(Patient, expanded_local_min, Type) %>%
+  summarize(sum = sum(postvax_freq)) %>%
+  pivot_wider(names_from = "expanded_local_min", values_from = sum) %>%
+  dplyr::rename("Nonexpanded" = "FALSE",
+                "Expanded" = "TRUE") %>%
+  replace(is.na(.), 0) %>%
+  mutate(fct_expanded = Expanded/(Expanded+Nonexpanded))
+
+fct_expanded %>%
+  group_by(Type) %>%
+  summarize(median(fct_expanded)*100)
+
+p2 <- fct_expanded %>%
+  mutate(Patient = factor(Patient, levels = c("P103", "P110" , "P106" , "P111" , "P105" , "P108", "P109" , "P104", "P101"))) %>%
+  ggplot(aes(x = fct_expanded, y = Type, fill = Type)) +
+  geom_col(color = "#920000FF", size = 1) +
+  facet_wrap(facets = ~factor(Patient, ), ncol = 1, strip.position = "right") +
+  scale_x_continuous(breaks=c(0, 0.5)) +
+  scale_y_discrete(expand = c(0.5, 0)) +
+  ylab("Fraction of the repertoire after vaccination") +
+  xlab("Fraction of the repertoire\nafter vaccination") +
+  theme_classic() +
+  scale_fill_manual(values = c("#B3B3B3", "#CD950C", "#0072B2"), name = "Type of IMP-\nexpanded clone") +
+  theme(axis.title=element_text(size=10),
+        axis.ticks.y = element_blank(),
+        axis.text.y = element_blank())
+
+p2
+```
+
+## Get session info
+```{r}
+sessionInfo()
+```
+
