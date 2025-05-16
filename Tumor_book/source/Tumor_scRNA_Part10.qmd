@@ -15,8 +15,8 @@ library(paletteer)
 library(viridis)
 library(readxl)
 library(patchwork)
-library(scater)
 library(muscat)
+library(scater)
 
 ```
 
@@ -588,7 +588,7 @@ h0 <- ComplexHeatmap::Heatmap(rna.reactive,
 	column_split = factor(meta.reac$functional.cluster),
 	column_order = reactive.order,
 	top_annotation = c(ha3,ha1,ha2),
-	border = T,
+	border = TRUE,
   row_names_gp = gpar(fontsize=6,fontface="italic"),
   row_title_gp = gpar(fontsize=8,fontface="bold"),
   column_title_gp = gpar(fontsize=8,fontface="bold"),
@@ -596,7 +596,7 @@ h0 <- ComplexHeatmap::Heatmap(rna.reactive,
 	row_title_rot = 0,
 	row_title_side = "left",
 	row_names_side = "right",
-	col = circlize::colorRamp2(c(0,3),hcl_palette = "viridis"),
+	col = circlize::colorRamp2(c(0,2), c("gray90", "red")),
 	name = "Expression",
 	column_title = "Individual TILs with Reactive TCR",
 	use_raster = F,
@@ -608,7 +608,12 @@ heatmap_barcodes_ordered <- colnames(rna.reactive)[as.numeric(unlist(col_order))
 
 ```
 
-
+```{r}
+#| echo: false
+pdf("Tumor_scRNA_Part10_heatmap.pdf",height=8)
+draw(h0)
+dev.off()
+```
 
 ## Get session info
 
